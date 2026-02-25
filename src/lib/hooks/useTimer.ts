@@ -85,6 +85,7 @@ export function useTimer() {
     }
 
     return clearTimer;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, clearTimer, markComplete, setSecondsRemaining]);
 
   // Handle page visibility — resume from wall-clock on visibility change

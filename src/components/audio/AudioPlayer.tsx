@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Volume2, VolumeX, Music, X, ChevronDown } from "lucide-react";
+import { Volume2, VolumeX, Music, ChevronDown } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useAudioStore, TRACKS, Track } from "@/lib/store/audio-store";
 import { useTimerStore } from "@/lib/store/timer-store";
@@ -48,7 +48,7 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
     if (generatedNodeRef.current) {
       try {
         (generatedNodeRef.current as AudioBufferSourceNode | OscillatorNode).stop();
-      } catch {}
+      } catch { }
       generatedNodeRef.current = null;
     }
   }, []);
@@ -188,7 +188,7 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
     } else if (currentTrack.type === "youtube" && currentTrack.youtubeId) {
       playYouTube(currentTrack.youtubeId);
     }
-  }, [trackId, isPlaying]);
+  }, [trackId, isPlaying, currentTrack, playFileTrack, playGenerated, playYouTube, stopAll]);
 
   // Volume control
   useEffect(() => {
@@ -196,7 +196,6 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
       howlRef.current.volume(isMuted ? 0 : volume);
     }
     if (audioCtxRef.current) {
-      const gainNodes = audioCtxRef.current.destination;
       // Update gainNode if we track it (simplified approach)
     }
   }, [volume, isMuted]);

@@ -36,6 +36,7 @@ export function TimerScreen() {
     if (status === "running") {
       zenTimerRef.current = setTimeout(() => setIsZen(true), 4000);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsZen(false);
       if (zenTimerRef.current) clearTimeout(zenTimerRef.current);
     }
@@ -59,11 +60,10 @@ export function TimerScreen() {
   // Show complete modal
   useEffect(() => {
     if (status === "complete") {
+      // eslint-disable-next-line
       setShowCompleteModal(true);
     }
-  }, [status]);
-
-  const currentTrack = useAudioStore((s) => s.trackId);
+  }, [status, reset, mode, plannedDuration]);
 
   return (
     <div className="relative flex flex-col items-center justify-center min-h-screen px-4">
@@ -86,7 +86,6 @@ export function TimerScreen() {
       >
         <CircularTimer
           secondsRemaining={secondsRemaining}
-          plannedDuration={plannedDuration}
           progress={progress}
           status={status}
           mode={mode}

@@ -1,0 +1,59 @@
+
+> focusflow@0.1.0 lint
+> eslint
+
+
+/Users/sergeychukavin/Documents/Projects/focusflow/src/components/audio/AudioPlayer.tsx
+    5:35  warning  'X' is defined but never used                                                                                                                                                      @typescript-eslint/no-unused-vars
+  191:6   warning  React Hook useEffect has missing dependencies: 'currentTrack', 'playFileTrack', 'playGenerated', 'playYouTube', and 'stopAll'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  199:13  warning  'gainNodes' is assigned a value but never used                                                                                                                                     @typescript-eslint/no-unused-vars
+
+/Users/sergeychukavin/Documents/Projects/focusflow/src/components/history/HistoryScreen.tsx
+  29:36  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/sergeychukavin/Documents/Projects/focusflow/src/components/history/HistoryScreen.tsx:29:36
+  27 |         const date = new Date(dateString);
+  28 |         const today = new Date().toISOString().split("T")[0];
+> 29 |         const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+     |                                    ^^^^^^^^^^ Cannot call impure function
+  30 |
+  31 |         if (dateString === today) return "Today";
+  32 |         if (dateString === yesterday) return "Yesterday";  react-hooks/purity
+
+/Users/sergeychukavin/Documents/Projects/focusflow/src/components/settings/SettingsScreen.tsx
+  151:65   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  152:73   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  153:63   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  154:63   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  163:67   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  164:146  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  167:150  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  174:67   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  177:59   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/sergeychukavin/Documents/Projects/focusflow/src/components/timer/CircularTimer.tsx
+  29:51  warning  'plannedDuration' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/sergeychukavin/Documents/Projects/focusflow/src/components/timer/TimerScreen.tsx
+  39:7  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/sergeychukavin/Documents/Projects/focusflow/src/components/timer/TimerScreen.tsx:39:7
+  37 |       zenTimerRef.current = setTimeout(() => setIsZen(true), 4000);
+  38 |     } else {
+> 39 |       setIsZen(false);
+     |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  40 |       if (zenTimerRef.current) clearTimeout(zenTimerRef.current);
+  41 |     }
+  42 |     return () => {  react-hooks/set-state-in-effect
+  67:9  warning  'currentTrack' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+
+✖ 16 problems (11 errors, 5 warnings)
+

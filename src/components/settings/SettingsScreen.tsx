@@ -1,43 +1,125 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Timer, Bell, Shield, Zap, Volume2 } from "lucide-react";
+import { Timer, Shield, Zap, Volume2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { useTimerStore, TimerMode } from "@/lib/store/timer-store";
+import { useAudioStore } from "@/lib/store/audio-store";
+import { useState } from "react";
+
+type SettingItem = {
+    label: string;
+    value: string;
+    type: "slider" | "toggle" | "button";
+    min?: number;
+    max?: number;
+    currentValue?: number[];
+    onChange?: (v: number[]) => void;
+    active?: boolean;
+    onToggle?: () => void;
+    action?: string;
+    onClick?: () => void;
+};
+
+type SettingsGroup = {
+    title: string;
+    icon: React.ElementType;
+    items: SettingItem[];
+};
 
 export function SettingsScreen() {
-    const settingsGroups = [
+    const { customDurations, setCustomDuration } = useTimerStore();
+    const { isPlaying, setPlaying, isMuted, toggleMute } = useAudioStore();
+
+    // For unimplemented features, use local state so toggles feel responsive
+    const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+    const [calendarSync, setCalendarSync] = useState(false);
+    const [cloudSync, setCloudSync] = useState(true);
+
+    const handleDurationChange = (mode: TimerMode, value: number[]) => {
+        setCustomDuration(mode, value[0] * 60);
+    };
+
+    const settingsGroups: SettingsGroup[] = [
         {
             title: "Focus & Break Lengths",
             icon: Timer,
             items: [
-                { label: "Focus Duration", value: "25 min", type: "slider", min: 10, max: 90, def: 25 },
-                { label: "Short Break", value: "5 min", type: "slider", min: 1, max: 15, def: 5 },
-                { label: "Long Break", value: "15 min", type: "slider", min: 5, max: 30, def: 15 },
+                {
+                    label: "Focus Duration",
+                    value: `${Math.round(customDurations.focus / 60)} min`,
+                    type: "slider",
+                    min: 10, max: 90,
+                    currentValue: [Math.round(customDurations.focus / 60)],
+                    onChange: (v: number[]) => handleDurationChange("focus", v)
+                },
+                {
+                    label: "Short Break",
+                    value: `${Math.round(customDurations.short_break / 60)} min`,
+                    type: "slider",
+                    min: 1, max: 15,
+                    currentValue: [Math.round(customDurations.short_break / 60)],
+                    onChange: (v: number[]) => handleDurationChange("short_break", v)
+                },
+                {
+                    label: "Long Break",
+                    value: `${Math.round(customDurations.long_break / 60)} min`,
+                    type: "slider",
+                    min: 5, max: 30,
+                    currentValue: [Math.round(customDurations.long_break / 60)],
+                    onChange: (v: number[]) => handleDurationChange("long_break", v)
+                },
             ]
         },
         {
             title: "Audio & Notifications",
             icon: Volume2,
             items: [
-                { label: "Timer Sounds", value: "Enabled", type: "toggle", active: true },
-                { label: "Ambient Music", value: "Enabled", type: "toggle", active: true },
-                { label: "Desktop Notifications", value: "Disabled", type: "toggle", active: false },
+                {
+                    label: "Ambient Music",
+                    value: isPlaying ? "Playing" : "Paused",
+                    type: "toggle",
+                    active: isPlaying,
+                    onToggle: () => setPlaying(!isPlaying)
+                },
+                {
+                    label: "Mute All Sounds",
+                    value: isMuted ? "Muted" : "Unmuted",
+                    type: "toggle",
+                    active: isMuted,
+                    onToggle: toggleMute
+                },
+                {
+                    label: "Desktop Notifications",
+                    value: notificationsEnabled ? "Enabled" : "Disabled",
+                    type: "toggle",
+                    active: notificationsEnabled,
+                    onToggle: () => {
+                        if (!notificationsEnabled && typeof window !== "undefined" && "Notification" in window) {
+                            Notification.requestPermission().then(p => {
+                                if (p === "granted") setNotificationsEnabled(true);
+                            });
+                        } else {
+                            setNotificationsEnabled(false);
+                        }
+                    }
+                },
             ]
         },
         {
             title: "Integrations",
             icon: Zap,
             items: [
-                { label: "Telegram Bot Sync", value: "Not Connected", type: "button", action: "Connect" },
-                { label: "Calendar Sync", value: "Disabled", type: "toggle", active: false },
+                { label: "Telegram Bot Sync", value: "Not Connected", type: "button", action: "Connect", onClick: () => alert("Telegram Bot integration coming soon!") },
+                { label: "Calendar Sync", value: calendarSync ? "Enabled" : "Disabled", type: "toggle", active: calendarSync, onToggle: () => setCalendarSync(!calendarSync) },
             ]
         },
         {
             title: "Account & Data",
             icon: Shield,
             items: [
-                { label: "Cloud Sync", value: "Active", type: "toggle", active: true },
-                { label: "Export Session History", value: "CSV", type: "button", action: "Download" },
+                { label: "Cloud Sync", value: cloudSync ? "Active" : "Paused", type: "toggle", active: cloudSync, onToggle: () => setCloudSync(!cloudSync) },
+                { label: "Export Session History", value: "CSV", type: "button", action: "Download", onClick: () => alert("Export feature coming soon!") },
             ]
         }
     ];
@@ -76,7 +158,7 @@ export function SettingsScreen() {
                         </div>
 
                         <div className="space-y-1 div-divide-y">
-                            {group.items.map((item, i) => (
+                            {group.items.map((item: SettingItem) => (
                                 <div key={item.label} className="flex flex-col md:flex-row md:items-center justify-between py-4 border-b border-[var(--ff-border)] last:border-0 last:pb-0">
                                     <div className="mb-3 md:mb-0">
                                         <p className="font-medium text-[var(--ff-text-primary)]">{item.label}</p>
@@ -86,9 +168,10 @@ export function SettingsScreen() {
                                     <div className="flex items-center md:justify-end min-w-[200px]">
                                         {item.type === "slider" && (
                                             <Slider
-                                                defaultValue={[(item as any).def!]}
-                                                max={(item as any).max!}
-                                                min={(item as any).min!}
+                                                value={item.currentValue}
+                                                onValueChange={item.onChange}
+                                                max={item.max}
+                                                min={item.min}
                                                 step={1}
                                                 className="w-full"
                                                 style={{ "--slider-track": "var(--ff-glass-03)", "--slider-range": "var(--ff-emerald)" } as React.CSSProperties}
@@ -97,17 +180,21 @@ export function SettingsScreen() {
 
                                         {item.type === "toggle" && (
                                             <button
-                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${(item as any).active ? 'bg-[var(--ff-emerald)]' : 'bg-[var(--ff-glass-03)]'}`}
+                                                onClick={item.onToggle}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${item.active ? 'bg-[var(--ff-emerald)]' : 'bg-[var(--ff-glass-03)]'}`}
                                             >
                                                 <span
-                                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${(item as any).active ? 'translate-x-6' : 'translate-x-1'}`}
+                                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${item.active ? 'translate-x-6' : 'translate-x-1'}`}
                                                 />
                                             </button>
                                         )}
 
                                         {item.type === "button" && (
-                                            <button className="px-5 py-2 rounded-xl bg-[var(--ff-glass-02)] hover:bg-[var(--ff-glass-03)] border border-[var(--ff-border)] text-sm font-medium text-[var(--ff-text-primary)] transition-all">
-                                                {(item as any).action}
+                                            <button
+                                                onClick={item.onClick}
+                                                className="px-5 py-2 rounded-xl bg-[var(--ff-glass-02)] hover:bg-[var(--ff-glass-03)] border border-[var(--ff-border)] text-sm font-medium text-[var(--ff-text-primary)] transition-all"
+                                            >
+                                                {item.action}
                                             </button>
                                         )}
                                     </div>

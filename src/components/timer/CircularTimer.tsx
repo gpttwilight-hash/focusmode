@@ -7,7 +7,6 @@ import { TimerMode, TimerStatus } from "@/lib/store/timer-store";
 
 interface Props {
   secondsRemaining: number;
-  plannedDuration: number;
   progress: number;
   status: TimerStatus;
   mode: TimerMode;
@@ -26,7 +25,7 @@ const MODE_LABELS: Record<TimerMode, string> = {
 
 const TICK_COUNT = 60;
 
-export function CircularTimer({ secondsRemaining, plannedDuration, progress, status, mode }: Props) {
+export function CircularTimer({ secondsRemaining, progress, status, mode }: Props) {
   const springProgress = useSpring(progress, {
     stiffness: 80,
     damping: 25,
@@ -109,8 +108,8 @@ export function CircularTimer({ secondsRemaining, plannedDuration, progress, sta
                   ? "rgba(16,185,129,0.6)"
                   : "rgba(16,185,129,0.3)"
                 : tick.isMajor
-                ? "rgba(255,255,255,0.12)"
-                : "rgba(255,255,255,0.05)"
+                  ? "rgba(255,255,255,0.12)"
+                  : "rgba(255,255,255,0.05)"
             }
             strokeWidth={tick.isMajor ? 1.5 : 1}
             strokeLinecap="round"

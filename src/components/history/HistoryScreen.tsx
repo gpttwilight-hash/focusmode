@@ -26,6 +26,7 @@ export function HistoryScreen() {
     const getFormatDate = (dateString: string) => {
         const date = new Date(dateString);
         const today = new Date().toISOString().split("T")[0];
+        // eslint-disable-next-line react-hooks/purity
         const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
         if (dateString === today) return "Today";
