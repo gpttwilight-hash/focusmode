@@ -7,7 +7,6 @@ import { CircularTimer } from "./CircularTimer";
 import { TimerControls } from "./TimerControls";
 import { TimerModeSelector } from "./TimerModeSelector";
 import { SessionGoalInput } from "./SessionGoalInput";
-import { AudioPlayer } from "@/components/audio/AudioPlayer";
 import { SessionCompleteModal } from "./SessionCompleteModal";
 import { useTimer } from "@/lib/hooks/useTimer";
 import { useAudioStore } from "@/lib/store/audio-store";
@@ -139,9 +138,6 @@ export function TimerScreen() {
           />
         </motion.button>
       </motion.div>
-
-      {/* Audio Panel */}
-      <AudioPlayer isOpen={isPanelOpen} onClose={() => useAudioStore.getState().closePanel()} />
 
       {/* Session Complete Modal */}
       <AnimatePresence>
