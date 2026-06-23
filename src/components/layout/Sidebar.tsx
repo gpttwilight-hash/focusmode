@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Timer, BarChart3, History, Settings, Zap } from "lucide-react";
+import { Timer, BarChart3, History, Settings, Zap, UserRound } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -70,6 +70,23 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Account */}
+      <div className="relative z-10 mb-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              href="/login"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-[var(--ff-text-tertiary)] hover:text-[var(--ff-text-secondary)] hover:bg-[var(--ff-glass-03)] transition-all duration-200"
+            >
+              <UserRound className="w-4 h-4" />
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="glass border-[var(--ff-border)]">
+            <p className="text-[var(--ff-text-primary)] text-xs">Account</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
 
       {/* Streak indicator */}
       <div className="relative z-10 mt-auto">
