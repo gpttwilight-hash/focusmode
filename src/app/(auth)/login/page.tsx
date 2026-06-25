@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { loginAction } from "@/lib/auth/actions";
 import Link from "next/link";
 import { useActionState } from "react";
+import { GoogleSignInButton } from "../GoogleSignInButton";
 
 const initialState = { ok: false, message: "" };
 
@@ -21,6 +22,16 @@ export default function LoginPage() {
       <p className="mb-6 text-sm leading-6 text-[var(--ff-text-secondary)]">
         Sign in to your focus workspace.
       </p>
+      <div className="mb-5">
+        <GoogleSignInButton />
+      </div>
+      <div className="mb-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-[var(--ff-border)]" />
+        <span className="text-xs uppercase tracking-[0.16em] text-[var(--ff-text-tertiary)]">
+          or
+        </span>
+        <div className="h-px flex-1 bg-[var(--ff-border)]" />
+      </div>
       <label className="mb-4 block">
         <span className="mb-2 block text-sm text-[var(--ff-text-secondary)]">Email</span>
         <input

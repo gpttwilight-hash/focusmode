@@ -17,6 +17,16 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const googleAccounts = pgTable("google_accounts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  googleSubject: text("google_subject").notNull().unique(),
+  email: varchar("email", { length: 320 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const emailVerificationCodes = pgTable("email_verification_codes", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
