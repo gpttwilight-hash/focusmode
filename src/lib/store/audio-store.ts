@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { YouTubeSource } from "@/lib/audio/youtube-url";
 
 export type AudioCategory = "lofi" | "nature" | "noise" | "youtube";
 
@@ -13,6 +14,8 @@ export interface Track {
   src?: string;
   generator?: string;
   youtubeId?: string;
+  youtubeSource?: YouTubeSource;
+  isCustom?: boolean;
 }
 
 export const TRACKS: Track[] = [
@@ -114,8 +117,11 @@ interface AudioStore {
   volume: number;
   isMuted: boolean;
   isPanelOpen: boolean;
+  customTracks: Track[];
 
   selectTrack: (trackId: string) => void;
+  addYouTubeTrack: (input: { name: string; source: YouTubeSource }) => string;
+  removeCustomTrack: (trackId: string) => void;
   setPlaying: (playing: boolean) => void;
   setVolume: (volume: number) => void;
   toggleMute: () => void;
@@ -132,9 +138,41 @@ export const useAudioStore = create<AudioStore>()(
       volume: 0.6,
       isMuted: false,
       isPanelOpen: false,
+      customTracks: [],
 
       selectTrack: (trackId) => {
         set({ trackId, isPlaying: true });
+      },
+
+      addYouTubeTrack: ({ name, source }) => {
+        const id = `youtube-${source.kind}-${source.id}-${Date.now()}`;
+        const track: Track = {
+          id,
+          name: name.trim() || (source.kind === "playlist" ? "YouTube Playlist" : "YouTube Video"),
+          category: "youtube",
+          icon: source.kind === "playlist" ? "▦" : "▶",
+          description: source.kind === "playlist" ? "Personal YouTube playlist" : "Personal YouTube video",
+          type: "youtube",
+          youtubeSource: source,
+          youtubeId: source.kind === "video" ? source.id : undefined,
+          isCustom: true,
+        };
+
+        set((state) => ({
+          customTracks: [track, ...state.customTracks],
+          trackId: id,
+          isPlaying: true,
+        }));
+
+        return id;
+      },
+
+      removeCustomTrack: (trackId) => {
+        set((state) => ({
+          customTracks: state.customTracks.filter((track) => track.id !== trackId),
+          trackId: state.trackId === trackId ? "lofi-chill" : state.trackId,
+          isPlaying: state.trackId === trackId ? false : state.isPlaying,
+        }));
       },
 
       setPlaying: (playing) => set({ isPlaying: playing }),
@@ -153,6 +191,7 @@ export const useAudioStore = create<AudioStore>()(
         trackId: state.trackId,
         volume: state.volume,
         isMuted: state.isMuted,
+        customTracks: state.customTracks,
       }),
     }
   )

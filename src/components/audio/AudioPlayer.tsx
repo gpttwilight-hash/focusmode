@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Volume2, VolumeX, Music, ChevronDown } from "lucide-react";
+import { Volume2, VolumeX, Music, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useAudioStore, TRACKS, Track } from "@/lib/store/audio-store";
 import { useTimerStore } from "@/lib/store/timer-store";
+import { createYouTubeEmbedUrl, parseYouTubeUrl } from "@/lib/audio/youtube-url";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -17,7 +18,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   lofi: "Lo-fi & Ambient",
   nature: "Nature Sounds",
   noise: "Focus Noise",
-  youtube: "Live Streams",
+  youtube: "YouTube",
 };
 
 const CATEGORY_ORDER = ["lofi", "nature", "noise", "youtube"];
@@ -25,14 +26,30 @@ const CATEGORY_ORDER = ["lofi", "nature", "noise", "youtube"];
 export function AudioPlayer({ isOpen, onClose }: Props) {
   const { trackId, isPlaying, volume, isMuted, selectTrack, setPlaying, setVolume, toggleMute } =
     useAudioStore();
+  const { customTracks, addYouTubeTrack, removeCustomTrack } = useAudioStore();
   const timerStatus = useTimerStore((s) => s.status);
 
   const howlRef = useRef<InstanceType<typeof window.Howl> | null>(null);
-  const ytPlayerRef = useRef<unknown>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const generatedNodeRef = useRef<AudioNode | null>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeName, setYoutubeName] = useState("");
+  const [youtubeError, setYoutubeError] = useState("");
 
-  const currentTrack = TRACKS.find((t) => t.id === trackId);
+  const allTracks = useMemo(() => [...customTracks, ...TRACKS], [customTracks]);
+  const currentTrack = allTracks.find((t) => t.id === trackId);
+  const youtubeSource =
+    currentTrack?.type === "youtube"
+      ? currentTrack.youtubeSource ??
+        (currentTrack.youtubeId ? { kind: "video" as const, id: currentTrack.youtubeId } : null)
+      : null;
+  const youtubeEmbedUrl =
+    youtubeSource && isPlaying
+      ? createYouTubeEmbedUrl(
+          youtubeSource,
+          typeof window === "undefined" ? undefined : window.location.origin
+        )
+      : null;
 
   const stopAll = useCallback(() => {
     if (howlRef.current) {
@@ -42,9 +59,6 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
         howlRef.current = null;
       }, 700);
     }
-    if (ytPlayerRef.current) {
-      (ytPlayerRef.current as { pauseVideo: () => void }).pauseVideo();
-    }
     if (generatedNodeRef.current) {
       try {
         (generatedNodeRef.current as AudioBufferSourceNode | OscillatorNode).stop();
@@ -52,31 +66,6 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
       generatedNodeRef.current = null;
     }
   }, []);
-
-  const playYouTube = useCallback(
-    (youtubeId: string) => {
-      if (ytPlayerRef.current) {
-        (ytPlayerRef.current as { loadVideoById: (id: string) => void }).loadVideoById(youtubeId);
-        if (isPlaying) {
-          (ytPlayerRef.current as { playVideo: () => void }).playVideo();
-        }
-        return;
-      }
-
-      const iframe = document.getElementById("yt-player-iframe");
-      if (!iframe) {
-        const container = document.getElementById("yt-player-container");
-        if (!container) return;
-        const iframeEl = document.createElement("iframe");
-        iframeEl.id = "yt-player-iframe";
-        iframeEl.src = `https://www.youtube.com/embed/${youtubeId}?enablejsapi=1&autoplay=1&loop=1&controls=0`;
-        iframeEl.allow = "autoplay";
-        iframeEl.style.display = "none";
-        container.appendChild(iframeEl);
-      }
-    },
-    [isPlaying]
-  );
 
   const playGenerated = useCallback(
     async (generator: string) => {
@@ -185,10 +174,8 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
       playFileTrack(currentTrack);
     } else if (currentTrack.type === "generated" && currentTrack.generator) {
       playGenerated(currentTrack.generator);
-    } else if (currentTrack.type === "youtube" && currentTrack.youtubeId) {
-      playYouTube(currentTrack.youtubeId);
     }
-  }, [trackId, isPlaying, currentTrack, playFileTrack, playGenerated, playYouTube, stopAll]);
+  }, [trackId, isPlaying, currentTrack, playFileTrack, playGenerated, stopAll]);
 
   // Volume control
   useEffect(() => {
@@ -209,17 +196,29 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
 
   const grouped = CATEGORY_ORDER.reduce(
     (acc, cat) => {
-      acc[cat] = TRACKS.filter((t) => t.category === cat);
+      acc[cat] = allTracks.filter((t) => t.category === cat);
       return acc;
     },
     {} as Record<string, Track[]>
   );
 
+  const handleAddYouTubeTrack = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const source = parseYouTubeUrl(youtubeUrl);
+
+    if (!source) {
+      setYoutubeError("Paste a valid YouTube video or playlist link.");
+      return;
+    }
+
+    addYouTubeTrack({ name: youtubeName, source });
+    setYoutubeUrl("");
+    setYoutubeName("");
+    setYoutubeError("");
+  };
+
   return (
     <>
-      {/* Hidden YouTube container */}
-      <div id="yt-player-container" className="hidden" />
-
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -282,6 +281,35 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
                 </div>
               </div>
 
+              {youtubeEmbedUrl && currentTrack && (
+                <div className="mb-5 overflow-hidden rounded-xl border border-[var(--ff-border)] bg-black/30">
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <div>
+                      <p className="text-xs font-medium text-[var(--ff-text-primary)]">
+                        {currentTrack.name}
+                      </p>
+                      <p className="text-[10px] text-[var(--ff-text-tertiary)]">
+                        YouTube player
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setPlaying(false)}
+                      className="rounded-lg px-2 py-1 text-[10px] text-[var(--ff-text-secondary)] hover:bg-[var(--ff-glass-03)]"
+                    >
+                      Stop
+                    </button>
+                  </div>
+                  <iframe
+                    key={youtubeEmbedUrl}
+                    title={currentTrack.name}
+                    src={youtubeEmbedUrl}
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                    allowFullScreen
+                    className="aspect-video w-full"
+                  />
+                </div>
+              )}
+
               {/* Track grid */}
               <div className="space-y-4">
                 {CATEGORY_ORDER.map((cat) => (
@@ -296,40 +324,85 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
                       {grouped[cat].map((track) => {
                         const isActive = trackId === track.id;
                         return (
-                          <button
+                          <div
                             key={track.id}
-                            onClick={() => selectTrack(track.id)}
                             className={cn(
-                              "relative p-2.5 rounded-xl text-left transition-all duration-200 group",
+                              "relative rounded-xl transition-all duration-200 group",
                               isActive
                                 ? "bg-[var(--ff-emerald-dim)] border border-[var(--ff-border-accent)]"
                                 : "glass-sm hover:border-[var(--ff-border-accent)]"
                             )}
                           >
-                            {isActive && isPlaying && (
-                              <motion.div
-                                className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--ff-emerald)]"
-                                animate={{ scale: [1, 1.5, 1] }}
-                                transition={{ duration: 1.5, repeat: Infinity }}
-                              />
-                            )}
-                            <div className="text-lg mb-0.5">{track.icon}</div>
-                            <div
-                              className="text-[10px] font-medium leading-tight"
-                              style={{
-                                color: isActive
-                                  ? "var(--ff-emerald)"
-                                  : "var(--ff-text-secondary)",
-                              }}
+                            <button
+                              onClick={() => selectTrack(track.id)}
+                              className="w-full p-2.5 text-left"
                             >
-                              {track.name}
-                            </div>
-                          </button>
+                              {isActive && isPlaying && (
+                                <motion.div
+                                  className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--ff-emerald)]"
+                                  animate={{ scale: [1, 1.5, 1] }}
+                                  transition={{ duration: 1.5, repeat: Infinity }}
+                                />
+                              )}
+                              <div className="text-lg mb-0.5">{track.icon}</div>
+                              <div
+                                className="text-[10px] font-medium leading-tight"
+                                style={{
+                                  color: isActive
+                                    ? "var(--ff-emerald)"
+                                    : "var(--ff-text-secondary)",
+                                }}
+                              >
+                                {track.name}
+                              </div>
+                            </button>
+                            {track.isCustom && (
+                              <button
+                                onClick={() => removeCustomTrack(track.id)}
+                                className="absolute bottom-1 right-1 rounded-md p-1 text-[var(--ff-text-tertiary)] opacity-0 transition-opacity hover:bg-[var(--ff-glass-03)] hover:text-[var(--ff-error)] group-hover:opacity-100"
+                                aria-label={`Remove ${track.name}`}
+                              >
+                                <Trash2 className="size-3" />
+                              </button>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
                   </div>
                 ))}
+
+                <form
+                  onSubmit={handleAddYouTubeTrack}
+                  className="rounded-xl border border-[var(--ff-border)] bg-[var(--ff-glass-02)] p-3"
+                >
+                  <div className="mb-2 flex items-center gap-2">
+                    <Plus className="size-3.5 text-[var(--ff-emerald)]" />
+                    <span className="text-xs font-medium text-[var(--ff-text-primary)]">
+                      Add YouTube
+                    </span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-[0.8fr_1.2fr_auto]">
+                    <input
+                      value={youtubeName}
+                      onChange={(event) => setYoutubeName(event.target.value)}
+                      placeholder="Name"
+                      className="h-9 rounded-lg border border-[var(--ff-border)] bg-[var(--ff-glass-01)] px-3 text-xs outline-none placeholder:text-[var(--ff-text-tertiary)] focus:border-[var(--ff-border-accent)]"
+                    />
+                    <input
+                      value={youtubeUrl}
+                      onChange={(event) => setYoutubeUrl(event.target.value)}
+                      placeholder="YouTube video or playlist URL"
+                      className="h-9 rounded-lg border border-[var(--ff-border)] bg-[var(--ff-glass-01)] px-3 text-xs outline-none placeholder:text-[var(--ff-text-tertiary)] focus:border-[var(--ff-border-accent)]"
+                    />
+                    <button className="h-9 rounded-lg bg-[var(--ff-emerald)] px-3 text-xs font-medium text-[#080f0e]">
+                      Add
+                    </button>
+                  </div>
+                  {youtubeError && (
+                    <p className="mt-2 text-[11px] text-[var(--ff-error)]">{youtubeError}</p>
+                  )}
+                </form>
               </div>
             </div>
           </motion.div>
