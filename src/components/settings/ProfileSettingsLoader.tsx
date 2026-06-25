@@ -6,6 +6,9 @@ import { toTimerDurations, type ProfileTimerSettings } from "@/lib/settings/time
 
 export function ProfileSettingsLoader() {
   const setCustomDurations = useTimerStore((state) => state.setCustomDurations);
+  const setDesktopNotificationsEnabled = useTimerStore(
+    (state) => state.setDesktopNotificationsEnabled
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -18,6 +21,7 @@ export function ProfileSettingsLoader() {
         const settings = (await response.json()) as ProfileTimerSettings;
         if (!cancelled) {
           setCustomDurations(toTimerDurations(settings));
+          setDesktopNotificationsEnabled(settings.desktopNotificationsEnabled);
         }
       } catch {
         // Local persisted settings stay in place if profile settings cannot be loaded.
@@ -29,7 +33,7 @@ export function ProfileSettingsLoader() {
     return () => {
       cancelled = true;
     };
-  }, [setCustomDurations]);
+  }, [setCustomDurations, setDesktopNotificationsEnabled]);
 
   return null;
 }

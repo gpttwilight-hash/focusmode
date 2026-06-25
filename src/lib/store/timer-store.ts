@@ -13,12 +13,14 @@ interface TimerStore {
   sessionLabel: string;
   sessionStartedAt: Date | null;
   completedPomodoros: number;
+  desktopNotificationsEnabled: boolean;
 
   customDurations: Record<TimerMode, number>;
 
   setMode: (mode: TimerMode) => void;
   setCustomDuration: (mode: TimerMode, seconds: number) => void;
   setCustomDurations: (durations: Record<TimerMode, number>) => void;
+  setDesktopNotificationsEnabled: (enabled: boolean) => void;
   setLabel: (label: string) => void;
   setSecondsRemaining: (s: number) => void;
   start: () => void;
@@ -39,6 +41,7 @@ export const useTimerStore = create<TimerStore>()(
   sessionLabel: "",
   sessionStartedAt: null,
   completedPomodoros: 0,
+  desktopNotificationsEnabled: false,
   customDurations: { ...DEFAULT_TIMER_DURATIONS },
 
   setMode: (mode) => {
@@ -67,6 +70,8 @@ export const useTimerStore = create<TimerStore>()(
       });
     }
   },
+
+  setDesktopNotificationsEnabled: (enabled) => set({ desktopNotificationsEnabled: enabled }),
 
   setLabel: (label) => set({ sessionLabel: label }),
 
@@ -123,6 +128,7 @@ export const useTimerStore = create<TimerStore>()(
       name: "focusflow-timer-settings",
       partialize: (state) => ({
         customDurations: state.customDurations,
+        desktopNotificationsEnabled: state.desktopNotificationsEnabled,
       }),
     }
   )

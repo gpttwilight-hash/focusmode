@@ -1,0 +1,1 @@
+ALTER TABLE "user_settings" ADD COLUMN "desktop_notifications_enabled" boolean DEFAULT false NOT NULL;

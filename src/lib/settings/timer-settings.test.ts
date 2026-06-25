@@ -11,6 +11,7 @@ describe("timer settings", () => {
       focusDurationSeconds: 60 * 60,
       shortBreakDurationSeconds: 8 * 60,
       longBreakDurationSeconds: 20 * 60,
+      desktopNotificationsEnabled: true,
     });
 
     expect(toTimerDurations(settings)).toEqual({
@@ -18,6 +19,7 @@ describe("timer settings", () => {
       short_break: 8 * 60,
       long_break: 20 * 60,
     });
+    expect(settings.desktopNotificationsEnabled).toBe(true);
   });
 
   it("falls back to defaults for invalid values", () => {
@@ -28,5 +30,6 @@ describe("timer settings", () => {
     });
 
     expect(toTimerDurations(settings)).toEqual(DEFAULT_TIMER_DURATIONS);
+    expect(settings.desktopNotificationsEnabled).toBe(false);
   });
 });

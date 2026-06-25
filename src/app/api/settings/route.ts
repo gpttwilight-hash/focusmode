@@ -24,6 +24,7 @@ export async function GET() {
       focusDurationSeconds: settings?.focusDurationSeconds,
       shortBreakDurationSeconds: settings?.shortBreakDurationSeconds,
       longBreakDurationSeconds: settings?.longBreakDurationSeconds,
+      desktopNotificationsEnabled: settings?.desktopNotificationsEnabled,
     })
   );
 }
@@ -43,7 +44,16 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const settings = normalizeTimerSettings(body);
+  const existing = await db.query.userSettings.findFirst({
+    where: eq(userSettings.userId, user.id),
+  });
+  const settings = normalizeTimerSettings({
+    focusDurationSeconds: existing?.focusDurationSeconds,
+    shortBreakDurationSeconds: existing?.shortBreakDurationSeconds,
+    longBreakDurationSeconds: existing?.longBreakDurationSeconds,
+    desktopNotificationsEnabled: existing?.desktopNotificationsEnabled,
+    ...body,
+  });
 
   const [saved] = await db
     .insert(userSettings)
@@ -65,6 +75,7 @@ export async function PUT(request: Request) {
       focusDurationSeconds: saved.focusDurationSeconds,
       shortBreakDurationSeconds: saved.shortBreakDurationSeconds,
       longBreakDurationSeconds: saved.longBreakDurationSeconds,
+      desktopNotificationsEnabled: saved.desktopNotificationsEnabled,
     })
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useTimerStore } from "@/lib/store/timer-store";
 import { useSessionStore } from "@/lib/store/session-store";
 import { useAudioStore } from "@/lib/store/audio-store";
+import { showTimerCompleteNotification } from "@/lib/notifications/focus-notification";
 
 export function useTimer() {
   const {
@@ -12,6 +13,7 @@ export function useTimer() {
     plannedDuration,
     sessionLabel,
     sessionStartedAt,
+    desktopNotificationsEnabled,
     mode,
     setSecondsRemaining,
     markComplete,
@@ -146,8 +148,18 @@ export function useTimer() {
 
   const handleComplete = useCallback(() => {
     saveSession(true);
+    if (typeof window !== "undefined" && "Notification" in window) {
+      showTimerCompleteNotification({
+        enabled: desktopNotificationsEnabled,
+        permission: Notification.permission,
+        mode,
+        createNotification: (title, options) => {
+          new Notification(title, options);
+        },
+      });
+    }
     setPlaying(false);
-  }, [saveSession, setPlaying]);
+  }, [desktopNotificationsEnabled, mode, saveSession, setPlaying]);
 
   // When status becomes "complete", save session
   useEffect(() => {

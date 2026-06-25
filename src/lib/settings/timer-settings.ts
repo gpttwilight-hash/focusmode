@@ -4,6 +4,7 @@ export type ProfileTimerSettings = {
   focusDurationSeconds: number;
   shortBreakDurationSeconds: number;
   longBreakDurationSeconds: number;
+  desktopNotificationsEnabled: boolean;
 };
 
 export const DEFAULT_TIMER_DURATIONS: Record<TimerMode, number> = {
@@ -12,7 +13,12 @@ export const DEFAULT_TIMER_DURATIONS: Record<TimerMode, number> = {
   long_break: 15 * 60,
 };
 
-const LIMITS: Record<keyof ProfileTimerSettings, { min: number; max: number; fallback: number }> = {
+type TimerDurationSettingKey = Exclude<
+  keyof ProfileTimerSettings,
+  "desktopNotificationsEnabled"
+>;
+
+const LIMITS: Record<TimerDurationSettingKey, { min: number; max: number; fallback: number }> = {
   focusDurationSeconds: {
     min: 10 * 60,
     max: 90 * 60,
@@ -52,6 +58,7 @@ export function normalizeTimerSettings(input: Partial<ProfileTimerSettings>): Pr
       input.longBreakDurationSeconds,
       LIMITS.longBreakDurationSeconds
     ),
+    desktopNotificationsEnabled: input.desktopNotificationsEnabled === true,
   };
 }
 

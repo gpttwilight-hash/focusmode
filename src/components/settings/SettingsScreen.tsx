@@ -33,26 +33,38 @@ type SettingsGroup = {
 };
 
 export function SettingsScreen() {
-    const { customDurations, setCustomDuration, setCustomDurations } = useTimerStore();
+    const {
+        customDurations,
+        desktopNotificationsEnabled,
+        setCustomDuration,
+        setCustomDurations,
+        setDesktopNotificationsEnabled,
+    } = useTimerStore();
     const { isPlaying, setPlaying, isMuted, toggleMute } = useAudioStore();
 
     // For unimplemented features, use local state so toggles feel responsive
-    const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [calendarSync, setCalendarSync] = useState(false);
     const [cloudSync, setCloudSync] = useState(true);
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
     const saveRequestId = useRef(0);
 
-    const saveProfileDurations = async (nextDurations: typeof customDurations) => {
+    const saveProfileSettings = async (
+        nextDurations: typeof customDurations,
+        notificationsEnabled: boolean
+    ) => {
         const requestId = saveRequestId.current + 1;
         saveRequestId.current = requestId;
         setSaveStatus("saving");
 
         try {
+            const profileSettings = {
+                ...toProfileTimerSettings(nextDurations),
+                desktopNotificationsEnabled: notificationsEnabled,
+            };
             const response = await fetch("/api/settings", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(toProfileTimerSettings(nextDurations)),
+                body: JSON.stringify(profileSettings),
             });
 
             if (!response.ok) throw new Error("Unable to save settings");
@@ -60,6 +72,7 @@ export function SettingsScreen() {
             const settings = (await response.json()) as ProfileTimerSettings;
             if (saveRequestId.current === requestId) {
                 setCustomDurations(toTimerDurations(settings));
+                setDesktopNotificationsEnabled(settings.desktopNotificationsEnabled);
                 setSaveStatus("saved");
             }
         } catch {
@@ -74,7 +87,34 @@ export function SettingsScreen() {
         const nextDurations = { ...customDurations, [mode]: seconds };
 
         setCustomDuration(mode, seconds);
-        void saveProfileDurations(nextDurations);
+        void saveProfileSettings(nextDurations, desktopNotificationsEnabled);
+    };
+
+    const handleNotificationsToggle = async () => {
+        if (desktopNotificationsEnabled) {
+            setDesktopNotificationsEnabled(false);
+            await saveProfileSettings(customDurations, false);
+            return;
+        }
+
+        if (typeof window === "undefined" || !("Notification" in window)) {
+            setSaveStatus("error");
+            return;
+        }
+
+        const permission =
+            Notification.permission === "granted"
+                ? "granted"
+                : await Notification.requestPermission();
+
+        if (permission !== "granted") {
+            setDesktopNotificationsEnabled(false);
+            setSaveStatus("error");
+            return;
+        }
+
+        setDesktopNotificationsEnabled(true);
+        await saveProfileSettings(customDurations, true);
     };
 
     const settingsGroups: SettingsGroup[] = [
@@ -128,18 +168,10 @@ export function SettingsScreen() {
                 },
                 {
                     label: "Desktop Notifications",
-                    value: notificationsEnabled ? "Enabled" : "Disabled",
+                    value: desktopNotificationsEnabled ? "Enabled" : "Disabled",
                     type: "toggle",
-                    active: notificationsEnabled,
-                    onToggle: () => {
-                        if (!notificationsEnabled && typeof window !== "undefined" && "Notification" in window) {
-                            Notification.requestPermission().then(p => {
-                                if (p === "granted") setNotificationsEnabled(true);
-                            });
-                        } else {
-                            setNotificationsEnabled(false);
-                        }
-                    }
+                    active: desktopNotificationsEnabled,
+                    onToggle: () => void handleNotificationsToggle()
                 },
             ]
         },
