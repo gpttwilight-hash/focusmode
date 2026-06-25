@@ -3,16 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Timer, BarChart3, History, Settings, Zap, UserRound } from "lucide-react";
+import { Zap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-const NAV_ITEMS = [
-  { href: "/", icon: Timer, label: "Focus Timer" },
-  { href: "/history", icon: History, label: "Session History" },
-  { href: "/dashboard", icon: BarChart3, label: "Dashboard" },
-  { href: "/settings", icon: Settings, label: "Settings" },
-];
+import { ACCOUNT_NAV_ITEM, SIDEBAR_NAV_ITEMS } from "./sidebar-nav";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -39,7 +33,7 @@ export function Sidebar() {
 
       {/* Nav items */}
       <nav className="relative z-10 flex flex-col gap-1 flex-1">
-        {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+        {SIDEBAR_NAV_ITEMS.map(({ href, icon: Icon, label }) => {
           const isActive = pathname === href;
           return (
             <Tooltip key={href}>
@@ -76,14 +70,19 @@ export function Sidebar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Link
-              href="/login"
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-[var(--ff-text-tertiary)] hover:text-[var(--ff-text-secondary)] hover:bg-[var(--ff-glass-03)] transition-all duration-200"
+              href={ACCOUNT_NAV_ITEM.href}
+              className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200",
+                pathname === ACCOUNT_NAV_ITEM.href
+                  ? "bg-[var(--ff-emerald-dim)] text-[var(--ff-emerald)]"
+                  : "text-[var(--ff-text-tertiary)] hover:text-[var(--ff-text-secondary)] hover:bg-[var(--ff-glass-03)]"
+              )}
             >
-              <UserRound className="w-4 h-4" />
+              <ACCOUNT_NAV_ITEM.icon className="w-4 h-4" />
             </Link>
           </TooltipTrigger>
           <TooltipContent side="right" className="glass border-[var(--ff-border)]">
-            <p className="text-[var(--ff-text-primary)] text-xs">Account</p>
+            <p className="text-[var(--ff-text-primary)] text-xs">{ACCOUNT_NAV_ITEM.label}</p>
           </TooltipContent>
         </Tooltip>
       </div>
