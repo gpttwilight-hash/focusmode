@@ -5,7 +5,12 @@ import { Timer, Shield, Zap, Volume2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useTimerStore, TimerMode } from "@/lib/store/timer-store";
 import { useAudioStore } from "@/lib/store/audio-store";
-import { useState } from "react";
+import {
+    toProfileTimerSettings,
+    toTimerDurations,
+    type ProfileTimerSettings,
+} from "@/lib/settings/timer-settings";
+import { useRef, useState } from "react";
 
 type SettingItem = {
     label: string;
@@ -28,16 +33,48 @@ type SettingsGroup = {
 };
 
 export function SettingsScreen() {
-    const { customDurations, setCustomDuration } = useTimerStore();
+    const { customDurations, setCustomDuration, setCustomDurations } = useTimerStore();
     const { isPlaying, setPlaying, isMuted, toggleMute } = useAudioStore();
 
     // For unimplemented features, use local state so toggles feel responsive
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [calendarSync, setCalendarSync] = useState(false);
     const [cloudSync, setCloudSync] = useState(true);
+    const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+    const saveRequestId = useRef(0);
+
+    const saveProfileDurations = async (nextDurations: typeof customDurations) => {
+        const requestId = saveRequestId.current + 1;
+        saveRequestId.current = requestId;
+        setSaveStatus("saving");
+
+        try {
+            const response = await fetch("/api/settings", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(toProfileTimerSettings(nextDurations)),
+            });
+
+            if (!response.ok) throw new Error("Unable to save settings");
+
+            const settings = (await response.json()) as ProfileTimerSettings;
+            if (saveRequestId.current === requestId) {
+                setCustomDurations(toTimerDurations(settings));
+                setSaveStatus("saved");
+            }
+        } catch {
+            if (saveRequestId.current === requestId) {
+                setSaveStatus("error");
+            }
+        }
+    };
 
     const handleDurationChange = (mode: TimerMode, value: number[]) => {
-        setCustomDuration(mode, value[0] * 60);
+        const seconds = value[0] * 60;
+        const nextDurations = { ...customDurations, [mode]: seconds };
+
+        setCustomDuration(mode, seconds);
+        void saveProfileDurations(nextDurations);
     };
 
     const settingsGroups: SettingsGroup[] = [
@@ -138,6 +175,14 @@ export function SettingsScreen() {
                     Customize your experience and preferences.
                 </p>
             </motion.div>
+
+            {saveStatus !== "idle" && (
+                <div className="mb-4 text-right text-xs text-[var(--ff-text-tertiary)]">
+                    {saveStatus === "saving" && "Saving profile settings..."}
+                    {saveStatus === "saved" && "Profile settings saved"}
+                    {saveStatus === "error" && "Could not save profile settings"}
+                </div>
+            )}
 
             <div className="space-y-8">
                 {settingsGroups.map((group, groupIndex) => (

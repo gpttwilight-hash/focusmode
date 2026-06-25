@@ -15,6 +15,13 @@
       "when": 1782406000000,
       "tag": "0001_google_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782413659299,
+      "tag": "0002_cloudy_sway",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { AmbientBackground } from "@/components/layout/AmbientBackground";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { AudioPlayer } from "@/components/audio/AudioPlayer";
+import { ProfileSettingsLoader } from "@/components/settings/ProfileSettingsLoader";
 import { useSessionStore } from "@/lib/store/session-store";
 import { useAudioStore } from "@/lib/store/audio-store";
 
@@ -17,6 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--ff-bg)" }}>
+      <ProfileSettingsLoader />
       <AmbientBackground />
       <Sidebar />
       <main className="relative z-10 ml-16 min-h-screen">

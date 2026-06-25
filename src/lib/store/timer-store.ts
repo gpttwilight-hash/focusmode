@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { DEFAULT_TIMER_DURATIONS } from "@/lib/settings/timer-settings";
 
 export type TimerMode = "focus" | "short_break" | "long_break";
 export type TimerStatus = "idle" | "running" | "paused" | "complete";
@@ -16,6 +18,7 @@ interface TimerStore {
 
   setMode: (mode: TimerMode) => void;
   setCustomDuration: (mode: TimerMode, seconds: number) => void;
+  setCustomDurations: (durations: Record<TimerMode, number>) => void;
   setLabel: (label: string) => void;
   setSecondsRemaining: (s: number) => void;
   start: () => void;
@@ -26,21 +29,17 @@ interface TimerStore {
   markComplete: () => void;
 }
 
-const DEFAULT_DURATIONS: Record<TimerMode, number> = {
-  focus: 25 * 60,
-  short_break: 5 * 60,
-  long_break: 15 * 60,
-};
-
-export const useTimerStore = create<TimerStore>((set, get) => ({
+export const useTimerStore = create<TimerStore>()(
+  persist(
+    (set, get) => ({
   mode: "focus",
   status: "idle",
-  secondsRemaining: DEFAULT_DURATIONS.focus,
-  plannedDuration: DEFAULT_DURATIONS.focus,
+  secondsRemaining: DEFAULT_TIMER_DURATIONS.focus,
+  plannedDuration: DEFAULT_TIMER_DURATIONS.focus,
   sessionLabel: "",
   sessionStartedAt: null,
   completedPomodoros: 0,
-  customDurations: { ...DEFAULT_DURATIONS },
+  customDurations: { ...DEFAULT_TIMER_DURATIONS },
 
   setMode: (mode) => {
     const { status, customDurations } = get();
@@ -55,6 +54,17 @@ export const useTimerStore = create<TimerStore>((set, get) => ({
     set({ customDurations: updated });
     if (mode === currentMode && (status === "idle")) {
       set({ secondsRemaining: seconds, plannedDuration: seconds });
+    }
+  },
+
+  setCustomDurations: (durations) => {
+    const { mode, status } = get();
+    set({ customDurations: durations });
+    if (status === "idle") {
+      set({
+        secondsRemaining: durations[mode],
+        plannedDuration: durations[mode],
+      });
     }
   },
 
@@ -108,4 +118,12 @@ export const useTimerStore = create<TimerStore>((set, get) => ({
       completedPomodoros: mode === "focus" ? completedPomodoros + 1 : completedPomodoros,
     });
   },
-}));
+    }),
+    {
+      name: "focusflow-timer-settings",
+      partialize: (state) => ({
+        customDurations: state.customDurations,
+      }),
+    }
+  )
+);

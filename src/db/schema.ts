@@ -50,3 +50,16 @@ export const authSessions = pgTable("auth_sessions", {
   revoked: boolean("revoked").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const userSettings = pgTable("user_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  focusDurationSeconds: integer("focus_duration_seconds").default(25 * 60).notNull(),
+  shortBreakDurationSeconds: integer("short_break_duration_seconds").default(5 * 60).notNull(),
+  longBreakDurationSeconds: integer("long_break_duration_seconds").default(15 * 60).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
