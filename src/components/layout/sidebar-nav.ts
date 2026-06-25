@@ -1,5 +1,10 @@
 import { BarChart3, History, Settings, Timer, UserRound } from "lucide-react";
 
+export const APP_NAV_ITEM = {
+  href: "/",
+  label: "FocusFlow",
+};
+
 export const SIDEBAR_NAV_ITEMS = [
   { href: "/", icon: Timer, label: "Focus Timer" },
   { href: "/history", icon: History, label: "Session History" },
@@ -11,4 +16,9 @@ export const ACCOUNT_NAV_ITEM = {
   href: "/settings",
   icon: UserRound,
   label: "Account",
+};
+
+export const STATUS_NAV_ITEM = {
+  icon: "0",
+  label: "Focus streak",
 };

@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Zap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { ACCOUNT_NAV_ITEM, SIDEBAR_NAV_ITEMS } from "./sidebar-nav";
+import { ACCOUNT_NAV_ITEM, APP_NAV_ITEM, SIDEBAR_NAV_ITEMS, STATUS_NAV_ITEM } from "./sidebar-nav";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -26,9 +26,20 @@ export function Sidebar() {
 
       {/* Logo */}
       <div className="relative z-10 mb-6">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--ff-emerald-dim)] border border-[var(--ff-border-accent)]">
-          <Zap className="w-4 h-4 text-[var(--ff-emerald)]" />
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              href={APP_NAV_ITEM.href}
+              aria-label={APP_NAV_ITEM.label}
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--ff-emerald-dim)] border border-[var(--ff-border-accent)] transition-all hover:bg-[var(--ff-glass-03)]"
+            >
+              <Zap className="w-4 h-4 text-[var(--ff-emerald)]" />
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="glass border-[var(--ff-border)]">
+            <p className="text-[var(--ff-text-primary)] text-xs">{APP_NAV_ITEM.label}</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Nav items */}
@@ -91,13 +102,15 @@ export function Sidebar() {
       <div className="relative z-10 mt-auto">
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-10 h-10 rounded-xl flex flex-col items-center justify-center bg-[var(--ff-glass-03)] cursor-default">
-              <span className="text-[10px] leading-none">🔥</span>
-              <span className="text-[10px] text-[var(--ff-emerald)] font-mono font-medium mt-0.5">0</span>
+            <div className="w-10 h-10 rounded-xl flex flex-col items-center justify-center border border-[var(--ff-border)] bg-[var(--ff-glass-02)] cursor-default">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--ff-emerald)] shadow-[0_0_12px_rgba(16,185,129,0.65)]" />
+              <span className="mt-1 text-[10px] text-[var(--ff-emerald)] font-mono font-medium">
+                {STATUS_NAV_ITEM.icon}
+              </span>
             </div>
           </TooltipTrigger>
           <TooltipContent side="right" className="glass border-[var(--ff-border)]">
-            <p className="text-[var(--ff-text-primary)] text-xs">0-day streak</p>
+            <p className="text-[var(--ff-text-primary)] text-xs">{STATUS_NAV_ITEM.label}: 0 days</p>
           </TooltipContent>
         </Tooltip>
       </div>

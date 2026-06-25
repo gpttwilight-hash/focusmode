@@ -219,6 +219,37 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
 
   return (
     <>
+      {youtubeEmbedUrl && currentTrack && (
+        <motion.div
+          initial={{ opacity: 0, y: -10, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className="fixed left-20 right-4 top-4 z-50 overflow-hidden rounded-2xl border border-[var(--ff-border-accent)] bg-[var(--ff-bg-elevated)] shadow-[0_18px_60px_rgba(0,0,0,0.45)] sm:left-auto sm:w-80"
+        >
+          <div className="flex items-center justify-between px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-[var(--ff-text-primary)]">
+                {currentTrack.name}
+              </p>
+              <p className="text-[10px] text-[var(--ff-text-tertiary)]">YouTube music</p>
+            </div>
+            <button
+              onClick={() => setPlaying(false)}
+              className="rounded-lg px-2 py-1 text-[10px] text-[var(--ff-text-secondary)] hover:bg-[var(--ff-glass-03)]"
+            >
+              Stop
+            </button>
+          </div>
+          <iframe
+            key={youtubeEmbedUrl}
+            title={currentTrack.name}
+            src={youtubeEmbedUrl}
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+            className="aspect-video w-full"
+          />
+        </motion.div>
+      )}
+
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -226,9 +257,9 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: "100%", opacity: 0 }}
             transition={{ type: "spring", stiffness: 280, damping: 32 }}
-            className="fixed bottom-0 left-16 right-0 z-30 p-4"
+            className="fixed bottom-20 left-20 right-4 z-30 sm:left-auto sm:w-[34rem]"
           >
-            <div className="glass-heavy rounded-2xl p-6 max-w-2xl mx-auto">
+            <div className="glass-heavy max-h-[calc(100vh-9rem)] overflow-y-auto rounded-2xl p-5">
               {/* Header */}
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2.5">
@@ -273,6 +304,7 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
                   </div>
                   <button
                     onClick={onClose}
+                    aria-label="Hide music"
                     className="w-7 h-7 rounded-lg flex items-center justify-center glass-sm"
                     style={{ color: "var(--ff-text-tertiary)" }}
                   >
@@ -280,35 +312,6 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
                   </button>
                 </div>
               </div>
-
-              {youtubeEmbedUrl && currentTrack && (
-                <div className="mb-5 overflow-hidden rounded-xl border border-[var(--ff-border)] bg-black/30">
-                  <div className="flex items-center justify-between px-3 py-2">
-                    <div>
-                      <p className="text-xs font-medium text-[var(--ff-text-primary)]">
-                        {currentTrack.name}
-                      </p>
-                      <p className="text-[10px] text-[var(--ff-text-tertiary)]">
-                        YouTube player
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setPlaying(false)}
-                      className="rounded-lg px-2 py-1 text-[10px] text-[var(--ff-text-secondary)] hover:bg-[var(--ff-glass-03)]"
-                    >
-                      Stop
-                    </button>
-                  </div>
-                  <iframe
-                    key={youtubeEmbedUrl}
-                    title={currentTrack.name}
-                    src={youtubeEmbedUrl}
-                    allow="autoplay; encrypted-media; picture-in-picture"
-                    allowFullScreen
-                    className="aspect-video w-full"
-                  />
-                </div>
-              )}
 
               {/* Track grid */}
               <div className="space-y-4">
