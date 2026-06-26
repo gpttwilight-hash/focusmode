@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Timer, Shield, Zap, Volume2 } from "lucide-react";
+import Link from "next/link";
 import { Slider } from "@/components/ui/slider";
 import { useTimerStore, TimerMode } from "@/lib/store/timer-store";
 import { useAudioStore } from "@/lib/store/audio-store";
@@ -10,7 +11,13 @@ import {
     toTimerDurations,
     type ProfileTimerSettings,
 } from "@/lib/settings/timer-settings";
-import { useRef, useState } from "react";
+import type { PublicProfile } from "@/lib/auth/public-profile";
+import { useEffect, useRef, useState } from "react";
+import {
+    createProfileSettingsSaveQueue,
+    type SaveStatus,
+} from "./profile-settings-save-queue";
+import { getProfileEmailText, type ProfileStatus } from "./profile-display";
 
 type SettingItem = {
     label: string;
@@ -20,6 +27,7 @@ type SettingItem = {
     max?: number;
     currentValue?: number[];
     onChange?: (v: number[]) => void;
+    onCommit?: (v: number[]) => void;
     active?: boolean;
     onToggle?: () => void;
     action?: string;
@@ -45,55 +53,59 @@ export function SettingsScreen() {
     // For unimplemented features, use local state so toggles feel responsive
     const [calendarSync, setCalendarSync] = useState(false);
     const [cloudSync, setCloudSync] = useState(true);
-    const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-    const saveRequestId = useRef(0);
+    const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+    const [profile, setProfile] = useState<PublicProfile | null>(null);
+    const [profileStatus, setProfileStatus] = useState<ProfileStatus>("loading");
+    const saveQueueRef = useRef<ReturnType<typeof createProfileSettingsSaveQueue> | null>(null);
 
-    const saveProfileSettings = async (
+    if (!saveQueueRef.current) {
+        saveQueueRef.current = createProfileSettingsSaveQueue({
+            save: async (profileSettings) => {
+                const response = await fetch("/api/settings", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(profileSettings),
+                });
+
+                if (!response.ok) throw new Error("Unable to save settings");
+
+                return (await response.json()) as ProfileTimerSettings;
+            },
+            applySavedSettings: (settings) => {
+                setCustomDurations(toTimerDurations(settings));
+                setDesktopNotificationsEnabled(settings.desktopNotificationsEnabled);
+            },
+            setSaveStatus,
+        });
+    }
+
+    const queueProfileSettingsSave = (
         nextDurations: typeof customDurations,
         notificationsEnabled: boolean
     ) => {
-        const requestId = saveRequestId.current + 1;
-        saveRequestId.current = requestId;
-        setSaveStatus("saving");
-
-        try {
-            const profileSettings = {
-                ...toProfileTimerSettings(nextDurations),
-                desktopNotificationsEnabled: notificationsEnabled,
-            };
-            const response = await fetch("/api/settings", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(profileSettings),
-            });
-
-            if (!response.ok) throw new Error("Unable to save settings");
-
-            const settings = (await response.json()) as ProfileTimerSettings;
-            if (saveRequestId.current === requestId) {
-                setCustomDurations(toTimerDurations(settings));
-                setDesktopNotificationsEnabled(settings.desktopNotificationsEnabled);
-                setSaveStatus("saved");
-            }
-        } catch {
-            if (saveRequestId.current === requestId) {
-                setSaveStatus("error");
-            }
-        }
+        saveQueueRef.current?.enqueue({
+            ...toProfileTimerSettings(nextDurations),
+            desktopNotificationsEnabled: notificationsEnabled,
+        });
     };
 
     const handleDurationChange = (mode: TimerMode, value: number[]) => {
         const seconds = value[0] * 60;
+        setCustomDuration(mode, seconds);
+    };
+
+    const handleDurationCommit = (mode: TimerMode, value: number[]) => {
+        const seconds = value[0] * 60;
         const nextDurations = { ...customDurations, [mode]: seconds };
 
         setCustomDuration(mode, seconds);
-        void saveProfileSettings(nextDurations, desktopNotificationsEnabled);
+        queueProfileSettingsSave(nextDurations, desktopNotificationsEnabled);
     };
 
     const handleNotificationsToggle = async () => {
         if (desktopNotificationsEnabled) {
             setDesktopNotificationsEnabled(false);
-            await saveProfileSettings(customDurations, false);
+            queueProfileSettingsSave(customDurations, false);
             return;
         }
 
@@ -114,8 +126,42 @@ export function SettingsScreen() {
         }
 
         setDesktopNotificationsEnabled(true);
-        await saveProfileSettings(customDurations, true);
+        queueProfileSettingsSave(customDurations, true);
     };
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadProfile() {
+            try {
+                const response = await fetch("/api/me", { cache: "no-store" });
+                if (response.status === 401) {
+                    if (!cancelled) {
+                        setProfile(null);
+                        setProfileStatus("signed-out");
+                    }
+                    return;
+                }
+                if (!response.ok) throw new Error("Unable to load profile");
+
+                const nextProfile = (await response.json()) as PublicProfile;
+                if (!cancelled) {
+                    setProfile(nextProfile);
+                    setProfileStatus("ready");
+                }
+            } catch {
+                if (!cancelled) {
+                    setProfileStatus("error");
+                }
+            }
+        }
+
+        void loadProfile();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const settingsGroups: SettingsGroup[] = [
         {
@@ -128,7 +174,8 @@ export function SettingsScreen() {
                     type: "slider",
                     min: 10, max: 90,
                     currentValue: [Math.round(customDurations.focus / 60)],
-                    onChange: (v: number[]) => handleDurationChange("focus", v)
+                    onChange: (v: number[]) => handleDurationChange("focus", v),
+                    onCommit: (v: number[]) => handleDurationCommit("focus", v)
                 },
                 {
                     label: "Short Break",
@@ -136,7 +183,8 @@ export function SettingsScreen() {
                     type: "slider",
                     min: 1, max: 15,
                     currentValue: [Math.round(customDurations.short_break / 60)],
-                    onChange: (v: number[]) => handleDurationChange("short_break", v)
+                    onChange: (v: number[]) => handleDurationChange("short_break", v),
+                    onCommit: (v: number[]) => handleDurationCommit("short_break", v)
                 },
                 {
                     label: "Long Break",
@@ -144,7 +192,8 @@ export function SettingsScreen() {
                     type: "slider",
                     min: 5, max: 30,
                     currentValue: [Math.round(customDurations.long_break / 60)],
-                    onChange: (v: number[]) => handleDurationChange("long_break", v)
+                    onChange: (v: number[]) => handleDurationChange("long_break", v),
+                    onCommit: (v: number[]) => handleDurationCommit("long_break", v)
                 },
             ]
         },
@@ -216,6 +265,37 @@ export function SettingsScreen() {
                 </div>
             )}
 
+            <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="glass mb-8 p-5 md:p-6 border border-[var(--ff-border)]"
+            >
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-[var(--ff-text-primary)]">
+                            Signed in as
+                        </p>
+                        <p className="mt-1 break-all font-mono text-sm text-[var(--ff-text-secondary)]">
+                            {getProfileEmailText(profileStatus, profile)}
+                        </p>
+                    </div>
+                    {profileStatus === "ready" && profile?.emailVerified && (
+                        <span className="w-fit rounded-full border border-[var(--ff-border-accent)] bg-[var(--ff-emerald-dim)] px-3 py-1 text-xs font-medium text-[var(--ff-emerald)]">
+                            Verified email
+                        </span>
+                    )}
+                    {profileStatus === "signed-out" && (
+                        <Link
+                            href="/login"
+                            className="w-fit rounded-full border border-[var(--ff-border)] bg-[var(--ff-glass-02)] px-3 py-1 text-xs font-medium text-[var(--ff-text-primary)] transition-colors hover:bg-[var(--ff-glass-03)]"
+                        >
+                            Sign in
+                        </Link>
+                    )}
+                </div>
+            </motion.div>
+
             <div className="space-y-8">
                 {settingsGroups.map((group, groupIndex) => (
                     <motion.div
@@ -247,6 +327,7 @@ export function SettingsScreen() {
                                             <Slider
                                                 value={item.currentValue}
                                                 onValueChange={item.onChange}
+                                                onValueCommit={item.onCommit}
                                                 max={item.max}
                                                 min={item.min}
                                                 step={1}
