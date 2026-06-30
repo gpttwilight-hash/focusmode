@@ -71,7 +71,7 @@ export function useTimer() {
           return;
         }
 
-        applyRemoteTimerState(remoteState);
+        applyRemoteTimerState(remoteState, { force: true });
         setSyncStatus("synced");
       } catch {
         setSyncStatus("offline");

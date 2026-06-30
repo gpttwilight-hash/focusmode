@@ -38,7 +38,10 @@ interface TimerStore {
   reset: () => void;
   markComplete: () => void;
   clearSavedSession: () => void;
-  applyRemoteTimerState: (remoteState: ActiveTimerState) => boolean;
+  applyRemoteTimerState: (
+    remoteState: ActiveTimerState,
+    options?: { force?: boolean }
+  ) => boolean;
 }
 
 function secondsBetween(start: Date, now: number) {
@@ -209,13 +212,15 @@ export const useTimerStore = create<TimerStore>()(
     set({ sessionStartedAt: null, runStartedAt: null });
   },
 
-  applyRemoteTimerState: (remoteState) => {
+  applyRemoteTimerState: (remoteState, options) => {
     const local = {
       version: get().syncVersion,
       updatedAt: get().syncUpdatedAt,
     };
 
-    if (!shouldApplyRemoteTimerState({ local, remote: remoteState })) return false;
+    if (!options?.force && !shouldApplyRemoteTimerState({ local, remote: remoteState })) {
+      return false;
+    }
 
     set(toTimerStorePatch(remoteState));
     return true;

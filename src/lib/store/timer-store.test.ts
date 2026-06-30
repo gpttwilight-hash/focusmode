@@ -92,4 +92,34 @@ describe("timer active time tracking", () => {
     expect(useTimerStore.getState().applyRemoteTimerState(stale)).toBe(false);
     expect(useTimerStore.getState().status).toBe("running");
   });
+
+  it("can force a matching remote version to repair persisted elapsed time", () => {
+    useTimerStore.setState({
+      status: "running",
+      plannedDuration: 900,
+      secondsRemaining: 420,
+      activeElapsedSeconds: 300,
+      runStartedAt: new Date("2026-06-30T09:02:00.000Z"),
+      sessionStartedAt: new Date("2026-06-30T09:00:00.000Z"),
+      syncVersion: 5,
+      syncUpdatedAt: new Date("2026-06-30T09:02:00.000Z"),
+    });
+
+    vi.setSystemTime(new Date("2026-06-30T09:05:00.000Z"));
+
+    const remote = normalizeActiveTimerInput({
+      mode: "focus",
+      status: "running",
+      plannedDuration: 900,
+      activeElapsedSeconds: 120,
+      runStartedAt: "2026-06-30T09:02:00.000Z",
+      sessionStartedAt: "2026-06-30T09:00:00.000Z",
+      version: 5,
+      updatedAt: "2026-06-30T09:02:00.000Z",
+    });
+
+    expect(useTimerStore.getState().applyRemoteTimerState(remote, { force: true })).toBe(true);
+    expect(useTimerStore.getState().activeElapsedSeconds).toBe(120);
+    expect(useTimerStore.getState().secondsRemaining).toBe(600);
+  });
 });
