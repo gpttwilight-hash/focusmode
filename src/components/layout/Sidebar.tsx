@@ -6,10 +6,17 @@ import { motion } from "framer-motion";
 import { Zap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { ACCOUNT_NAV_ITEM, APP_NAV_ITEM, SIDEBAR_NAV_ITEMS, STATUS_NAV_ITEM } from "./sidebar-nav";
+import { useSessionStore } from "@/lib/store/session-store";
+import {
+  ACCOUNT_NAV_ITEM,
+  APP_NAV_ITEM,
+  getFocusStreakLabel,
+  SIDEBAR_NAV_ITEMS,
+} from "./sidebar-nav";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const streak = useSessionStore((state) => state.getStreak());
 
   return (
     <motion.aside
@@ -105,12 +112,12 @@ export function Sidebar() {
             <div className="w-10 h-10 rounded-xl flex flex-col items-center justify-center border border-[var(--ff-border)] bg-[var(--ff-glass-02)] cursor-default">
               <span className="h-1.5 w-1.5 rounded-full bg-[var(--ff-emerald)] shadow-[0_0_12px_rgba(16,185,129,0.65)]" />
               <span className="mt-1 text-[10px] text-[var(--ff-emerald)] font-mono font-medium">
-                {STATUS_NAV_ITEM.icon}
+                {streak}
               </span>
             </div>
           </TooltipTrigger>
           <TooltipContent side="right" className="glass border-[var(--ff-border)]">
-            <p className="text-[var(--ff-text-primary)] text-xs">{STATUS_NAV_ITEM.label}: 0 days</p>
+            <p className="text-[var(--ff-text-primary)] text-xs">{getFocusStreakLabel(streak)}</p>
           </TooltipContent>
         </Tooltip>
       </div>

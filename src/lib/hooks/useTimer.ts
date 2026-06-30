@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTimerStore } from "@/lib/store/timer-store";
 import { useSessionStore } from "@/lib/store/session-store";
 import { useAudioStore } from "@/lib/store/audio-store";
 import { showTimerCompleteNotification } from "@/lib/notifications/focus-notification";
+import {
+  fetchActiveTimerState,
+  sendActiveTimerMutation,
+} from "@/lib/timer/timer-sync";
+import type { ActiveTimerMutation } from "@/lib/timer/active-timer";
 import {
   createInitialTimerAlertState,
   getTimerAlertCue,
@@ -30,6 +35,8 @@ export function useTimer() {
     stop,
     reset,
     clearSavedSession,
+    customDurations,
+    applyRemoteTimerState,
   } = useTimerStore();
 
   const { addSession, setCurrentSession } = useSessionStore();
@@ -37,6 +44,10 @@ export function useTimer() {
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerAlertStateRef = useRef<TimerAlertState>(createInitialTimerAlertState());
+  const completionHandledRef = useRef(false);
+  const [syncStatus, setSyncStatus] = useState<
+    "idle" | "syncing" | "synced" | "offline" | "signed-out"
+  >("idle");
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -48,6 +59,47 @@ export function useTimer() {
   const resetTimerAlerts = useCallback(() => {
     timerAlertStateRef.current = createInitialTimerAlertState();
   }, []);
+
+  const syncFromRemote = useCallback(
+    async (quiet = false) => {
+      if (!quiet) setSyncStatus("syncing");
+
+      try {
+        const remoteState = await fetchActiveTimerState();
+        if (!remoteState) {
+          setSyncStatus("signed-out");
+          return;
+        }
+
+        applyRemoteTimerState(remoteState);
+        setSyncStatus("synced");
+      } catch {
+        setSyncStatus("offline");
+      }
+    },
+    [applyRemoteTimerState]
+  );
+
+  const syncMutation = useCallback(
+    (mutation: ActiveTimerMutation) => {
+      setSyncStatus("syncing");
+
+      void sendActiveTimerMutation(mutation)
+        .then((remoteState) => {
+          if (!remoteState) {
+            setSyncStatus("signed-out");
+            return;
+          }
+
+          applyRemoteTimerState(remoteState);
+          setSyncStatus("synced");
+        })
+        .catch(() => {
+          setSyncStatus("offline");
+        });
+    },
+    [applyRemoteTimerState]
+  );
 
   const saveSession = useCallback(
     (completed: boolean) => {
@@ -92,16 +144,46 @@ export function useTimer() {
     return clearTimer;
   }, [status, clearTimer, syncRunningTime]);
 
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      void syncFromRemote(true);
+    }, 0);
+
+    return () => clearTimeout(timeout);
+  }, [syncFromRemote]);
+
+  useEffect(() => {
+    if (syncStatus === "signed-out") return;
+
+    const interval = setInterval(() => {
+      void syncFromRemote(true);
+    }, status === "running" || status === "paused" ? 1000 : 6000);
+
+    return () => clearInterval(interval);
+  }, [status, syncFromRemote, syncStatus]);
+
   // Handle page visibility — resume from wall-clock on visibility change
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible" && status === "running") {
         syncRunningTime();
       }
+      if (document.visibilityState === "visible") {
+        void syncFromRemote(true);
+      }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [status, syncRunningTime]);
+  }, [status, syncRunningTime, syncFromRemote]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      void syncFromRemote(true);
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [syncFromRemote]);
 
   // Update browser tab title
   useEffect(() => {
@@ -141,17 +223,34 @@ export function useTimer() {
     resetTimerAlerts();
     void primeTimerAlertAudio();
     start();
+    syncMutation({
+      type: "start",
+      mode,
+      plannedDuration: customDurations[mode],
+      sessionLabel,
+    });
     if (!isPlaying) setPlaying(true);
-  }, [resetTimerAlerts, start, isPlaying, setPlaying]);
+  }, [
+    resetTimerAlerts,
+    start,
+    syncMutation,
+    mode,
+    customDurations,
+    sessionLabel,
+    isPlaying,
+    setPlaying,
+  ]);
 
   const handlePause = useCallback(() => {
     pause();
-  }, [pause]);
+    syncMutation({ type: "pause" });
+  }, [pause, syncMutation]);
 
   const handleResume = useCallback(() => {
     void primeTimerAlertAudio();
     resume();
-  }, [resume]);
+    syncMutation({ type: "resume" });
+  }, [resume, syncMutation]);
 
   const handleStop = useCallback(() => {
     if (sessionStartedAt) {
@@ -159,13 +258,19 @@ export function useTimer() {
     }
     resetTimerAlerts();
     stop();
+    syncMutation({ type: "stop" });
     setPlaying(false);
-  }, [sessionStartedAt, saveSession, resetTimerAlerts, stop, setPlaying]);
+  }, [sessionStartedAt, saveSession, resetTimerAlerts, stop, syncMutation, setPlaying]);
 
   const handleReset = useCallback(() => {
     resetTimerAlerts();
     reset();
-  }, [resetTimerAlerts, reset]);
+    syncMutation({
+      type: "reset",
+      mode,
+      plannedDuration: customDurations[mode],
+    });
+  }, [resetTimerAlerts, reset, syncMutation, mode, customDurations]);
 
   const handleComplete = useCallback(() => {
     saveSession(true);
@@ -181,13 +286,31 @@ export function useTimer() {
       });
     }
     setPlaying(false);
-  }, [desktopNotificationsEnabled, mode, saveSession, clearSavedSession, setPlaying]);
+    syncMutation({ type: "complete" });
+  }, [
+    desktopNotificationsEnabled,
+    mode,
+    saveSession,
+    clearSavedSession,
+    setPlaying,
+    syncMutation,
+  ]);
 
   // When status becomes "complete", save session
   useEffect(() => {
-    if (status === "complete") {
-      handleComplete();
+    if (status !== "complete") {
+      completionHandledRef.current = false;
+      return;
     }
+
+    if (completionHandledRef.current) return;
+    completionHandledRef.current = true;
+
+    const timeout = setTimeout(() => {
+      handleComplete();
+    }, 0);
+
+    return () => clearTimeout(timeout);
   }, [status, handleComplete]);
 
   const progress = plannedDuration > 0 ? 1 - secondsRemaining / plannedDuration : 0;
@@ -199,6 +322,7 @@ export function useTimer() {
     progress,
     mode,
     sessionLabel,
+    syncStatus,
     handleStart,
     handlePause,
     handleResume,

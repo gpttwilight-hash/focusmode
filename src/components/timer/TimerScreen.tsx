@@ -8,6 +8,7 @@ import { TimerControls } from "./TimerControls";
 import { TimerModeSelector } from "./TimerModeSelector";
 import { SessionGoalInput } from "./SessionGoalInput";
 import { SessionCompleteModal } from "./SessionCompleteModal";
+import { TimerSyncStatus } from "./TimerSyncStatus";
 import { useTimer } from "@/lib/hooks/useTimer";
 import { useAudioStore } from "@/lib/store/audio-store";
 
@@ -23,6 +24,7 @@ export function TimerScreen() {
     handleResume,
     handleStop,
     reset,
+    syncStatus,
   } = useTimer();
 
   const { isPanelOpen, togglePanel } = useAudioStore();
@@ -65,12 +67,12 @@ export function TimerScreen() {
   }, [status, reset, mode, plannedDuration]);
 
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen px-4">
+    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-20 sm:py-16">
       {/* Top bar with mode selector */}
       <motion.div
         animate={{ opacity: isZen ? 0.04 : 1 }}
         transition={{ duration: isZen ? 1.5 : 0.3 }}
-        className="absolute top-8 left-0 right-0 flex justify-center pointer-events-none"
+        className="pointer-events-none absolute left-0 right-0 top-4 flex justify-center sm:top-8"
         style={{ pointerEvents: isZen ? "none" : "auto" }}
       >
         <TimerModeSelector />
@@ -109,13 +111,20 @@ export function TimerScreen() {
           onStop={handleStop}
           onReset={reset}
         />
+        <motion.div
+          animate={{ opacity: isZen ? 0.05 : 1 }}
+          transition={{ duration: isZen ? 1.5 : 0.3 }}
+          style={{ pointerEvents: isZen ? "none" : "auto" }}
+        >
+          <TimerSyncStatus status={syncStatus} />
+        </motion.div>
       </motion.div>
 
       {/* Music toggle button */}
       <motion.div
         animate={{ opacity: isZen ? 0.06 : 1 }}
         transition={{ duration: isZen ? 1.5 : 0.3 }}
-        className="absolute bottom-8 right-8"
+        className="absolute bottom-5 right-5 sm:bottom-8 sm:right-8"
         style={{ pointerEvents: isZen ? "none" : "auto" }}
       >
         <motion.button

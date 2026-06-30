@@ -64,3 +64,22 @@ export const userSettings = pgTable("user_settings", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const activeTimers = pgTable("active_timers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  mode: text("mode").default("focus").notNull(),
+  status: text("status").default("idle").notNull(),
+  sessionLabel: text("session_label").default("").notNull(),
+  plannedDuration: integer("planned_duration").default(25 * 60).notNull(),
+  activeElapsedSeconds: integer("active_elapsed_seconds").default(0).notNull(),
+  sessionStartedAt: timestamp("session_started_at", { withTimezone: true }),
+  runStartedAt: timestamp("run_started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  version: integer("version").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});

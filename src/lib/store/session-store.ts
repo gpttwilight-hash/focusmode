@@ -30,6 +30,7 @@ interface SessionStore {
   streak: number;
 
   addSession: (session: Session) => void;
+  importSessions: (sessions: Session[]) => number;
   setCurrentSession: (session: Partial<Session> | null) => void;
   loadSessions: () => void;
   getDailyStats: (date: Date) => DailyStats;
@@ -64,6 +65,68 @@ function saveToStorage(sessions: Session[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
 }
 
+function isSessionMode(value: unknown): value is Session["mode"] {
+  return value === "focus" || value === "short_break" || value === "long_break";
+}
+
+function parseSessionDate(value: unknown) {
+  if (typeof value !== "string" && !(value instanceof Date)) return null;
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function parseImportedSessions(input: unknown): Session[] {
+  if (!Array.isArray(input)) return [];
+
+  return input.flatMap((item): Session[] => {
+    if (!item || typeof item !== "object") return [];
+    const session = item as Record<string, unknown>;
+    const startedAt = parseSessionDate(session.startedAt);
+    const endedAt = parseSessionDate(session.endedAt);
+
+    if (
+      typeof session.id !== "string" ||
+      !isSessionMode(session.mode) ||
+      typeof session.plannedDuration !== "number" ||
+      typeof session.actualDuration !== "number" ||
+      !startedAt ||
+      !endedAt
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        id: session.id,
+        userId: typeof session.userId === "string" ? session.userId : undefined,
+        label: typeof session.label === "string" ? session.label : "",
+        mode: session.mode,
+        plannedDuration: Math.max(0, Math.round(session.plannedDuration)),
+        actualDuration: Math.max(0, Math.round(session.actualDuration)),
+        startedAt,
+        endedAt,
+        completed: session.completed === true,
+        interrupted: session.interrupted === true,
+        audioTrackId: typeof session.audioTrackId === "string" ? session.audioTrackId : undefined,
+        synced: session.synced === true,
+      },
+    ];
+  });
+}
+
+export function mergeSessions(existing: Session[], incoming: Session[]) {
+  const sessionsById = new Map(existing.map((session) => [session.id, session]));
+
+  incoming.forEach((session) => {
+    if (!sessionsById.has(session.id)) sessionsById.set(session.id, session);
+  });
+
+  return Array.from(sessionsById.values()).sort(
+    (a, b) => a.startedAt.getTime() - b.startedAt.getTime()
+  );
+}
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   currentSession: null,
@@ -74,6 +137,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const sessions = [...get().sessions, { ...session, id: session.id || generateId() }];
     saveToStorage(sessions);
     set({ sessions, streak: get().getStreak() });
+  },
+
+  importSessions: (importedSessions) => {
+    const sessions = mergeSessions(get().sessions, importedSessions);
+    const importedCount = sessions.length - get().sessions.length;
+    saveToStorage(sessions);
+    set({ sessions, streak: get().getStreak() });
+    return importedCount;
   },
 
   setCurrentSession: (session) => set({ currentSession: session }),

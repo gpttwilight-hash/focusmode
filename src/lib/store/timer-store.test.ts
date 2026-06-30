@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TIMER_DURATIONS } from "@/lib/settings/timer-settings";
+import { normalizeActiveTimerInput } from "@/lib/timer/active-timer";
 import { useTimerStore } from "./timer-store";
 
 function resetTimerStore() {
@@ -15,6 +16,8 @@ function resetTimerStore() {
     completedPomodoros: 0,
     desktopNotificationsEnabled: false,
     customDurations: { ...DEFAULT_TIMER_DURATIONS },
+    syncVersion: 0,
+    syncUpdatedAt: null,
   });
 }
 
@@ -61,5 +64,32 @@ describe("timer active time tracking", () => {
     expect(useTimerStore.getState().status).toBe("complete");
     expect(useTimerStore.getState().getActiveElapsedSeconds()).toBe(90 * 60);
     expect(useTimerStore.getState().secondsRemaining).toBe(0);
+  });
+
+  it("applies newer remote timer state and ignores stale remote state", () => {
+    const remote = normalizeActiveTimerInput({
+      mode: "focus",
+      status: "running",
+      plannedDuration: 900,
+      activeElapsedSeconds: 120,
+      runStartedAt: "2026-06-30T09:00:00.000Z",
+      sessionStartedAt: "2026-06-30T09:00:00.000Z",
+      version: 2,
+      updatedAt: "2026-06-30T09:00:00.000Z",
+    });
+
+    expect(useTimerStore.getState().applyRemoteTimerState(remote)).toBe(true);
+    expect(useTimerStore.getState().status).toBe("running");
+    expect(useTimerStore.getState().syncVersion).toBe(2);
+
+    const stale = normalizeActiveTimerInput({
+      ...remote,
+      status: "paused",
+      version: 1,
+      updatedAt: "2026-06-30T09:10:00.000Z",
+    });
+
+    expect(useTimerStore.getState().applyRemoteTimerState(stale)).toBe(false);
+    expect(useTimerStore.getState().status).toBe("running");
   });
 });

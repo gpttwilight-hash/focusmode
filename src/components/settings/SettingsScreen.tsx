@@ -5,6 +5,7 @@ import { Timer, Shield, Zap, Volume2 } from "lucide-react";
 import Link from "next/link";
 import { Slider } from "@/components/ui/slider";
 import { useTimerStore, TimerMode } from "@/lib/store/timer-store";
+import { useSessionStore } from "@/lib/store/session-store";
 import { useAudioStore } from "@/lib/store/audio-store";
 import {
     toProfileTimerSettings,
@@ -22,7 +23,7 @@ import { getProfileEmailText, type ProfileStatus } from "./profile-display";
 type SettingItem = {
     label: string;
     value: string;
-    type: "slider" | "toggle" | "button";
+    type: "slider" | "toggle" | "button" | "status";
     min?: number;
     max?: number;
     currentValue?: number[];
@@ -49,10 +50,10 @@ export function SettingsScreen() {
         setDesktopNotificationsEnabled,
     } = useTimerStore();
     const { isPlaying, setPlaying, isMuted, toggleMute } = useAudioStore();
+    const sessions = useSessionStore((state) => state.sessions);
 
     // For unimplemented features, use local state so toggles feel responsive
     const [calendarSync, setCalendarSync] = useState(false);
-    const [cloudSync, setCloudSync] = useState(true);
     const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
     const [profile, setProfile] = useState<PublicProfile | null>(null);
     const [profileStatus, setProfileStatus] = useState<ProfileStatus>("loading");
@@ -127,6 +128,18 @@ export function SettingsScreen() {
 
         setDesktopNotificationsEnabled(true);
         queueProfileSettingsSave(customDurations, true);
+    };
+
+    const handleExportSessionHistory = () => {
+        const blob = new Blob([JSON.stringify(sessions, null, 2)], {
+            type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "focusflow-sessions.json";
+        link.click();
+        URL.revokeObjectURL(url);
     };
 
     useEffect(() => {
@@ -236,8 +249,23 @@ export function SettingsScreen() {
             title: "Account & Data",
             icon: Shield,
             items: [
-                { label: "Cloud Sync", value: cloudSync ? "Active" : "Paused", type: "toggle", active: cloudSync, onToggle: () => setCloudSync(!cloudSync) },
-                { label: "Export Session History", value: "CSV", type: "button", action: "Download", onClick: () => alert("Export feature coming soon!") },
+                {
+                    label: "Cloud Sync",
+                    value:
+                        profileStatus === "ready"
+                            ? "Active for timer"
+                            : profileStatus === "signed-out"
+                              ? "Sign in required"
+                              : "Checking account",
+                    type: "status",
+                },
+                {
+                    label: "Export Session History",
+                    value: `${sessions.length} sessions`,
+                    type: "button",
+                    action: "Download",
+                    onClick: handleExportSessionHistory,
+                },
             ]
         }
     ];
@@ -354,6 +382,12 @@ export function SettingsScreen() {
                                             >
                                                 {item.action}
                                             </button>
+                                        )}
+
+                                        {item.type === "status" && (
+                                            <span className="rounded-full border border-[var(--ff-border)] bg-[var(--ff-glass-02)] px-3 py-1 text-xs font-medium text-[var(--ff-text-secondary)]">
+                                                Automatic
+                                            </span>
                                         )}
                                     </div>
                                 </div>

@@ -22,3 +22,7 @@ export const STATUS_NAV_ITEM = {
   icon: "0",
   label: "Focus streak",
 };
+
+export function getFocusStreakLabel(streak: number) {
+  return `${STATUS_NAV_ITEM.label}: ${Math.max(0, Math.round(streak))} days`;
+}

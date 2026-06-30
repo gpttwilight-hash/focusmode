@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCOUNT_NAV_ITEM, APP_NAV_ITEM, STATUS_NAV_ITEM } from "./sidebar-nav";
+import { ACCOUNT_NAV_ITEM, APP_NAV_ITEM, getFocusStreakLabel, STATUS_NAV_ITEM } from "./sidebar-nav";
 
 describe("sidebar navigation", () => {
   it("uses the app mark as a home shortcut", () => {
@@ -15,5 +15,9 @@ describe("sidebar navigation", () => {
   it("uses a neutral focus status icon instead of an emoji streak", () => {
     expect(STATUS_NAV_ITEM.label).toBe("Focus streak");
     expect(STATUS_NAV_ITEM.icon).not.toBe("🔥");
+  });
+
+  it("formats the real focus streak count for the sidebar tooltip", () => {
+    expect(getFocusStreakLabel(4)).toBe("Focus streak: 4 days");
   });
 });

@@ -71,7 +71,9 @@ export function DashboardScreen() {
     });
 
     useEffect(() => {
-        setChartReady(true);
+        const timeout = setTimeout(() => setChartReady(true), 0);
+
+        return () => clearTimeout(timeout);
     }, []);
 
     return (

@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { DEFAULT_TIMER_DURATIONS } from "@/lib/settings/timer-settings";
+import type { ActiveTimerState } from "@/lib/timer/active-timer";
+import { shouldApplyRemoteTimerState, toTimerStorePatch } from "@/lib/timer/timer-sync";
 
 export type TimerMode = "focus" | "short_break" | "long_break";
 export type TimerStatus = "idle" | "running" | "paused" | "complete";
@@ -16,6 +18,8 @@ interface TimerStore {
   runStartedAt: Date | null;
   completedPomodoros: number;
   desktopNotificationsEnabled: boolean;
+  syncVersion: number;
+  syncUpdatedAt: Date | null;
 
   customDurations: Record<TimerMode, number>;
 
@@ -34,6 +38,7 @@ interface TimerStore {
   reset: () => void;
   markComplete: () => void;
   clearSavedSession: () => void;
+  applyRemoteTimerState: (remoteState: ActiveTimerState) => boolean;
 }
 
 function secondsBetween(start: Date, now: number) {
@@ -41,7 +46,9 @@ function secondsBetween(start: Date, now: number) {
 }
 
 function reviveTimerDate(key: string, value: unknown) {
-  if (key !== "sessionStartedAt" && key !== "runStartedAt") return value;
+  if (key !== "sessionStartedAt" && key !== "runStartedAt" && key !== "syncUpdatedAt") {
+    return value;
+  }
   if (typeof value !== "string") return value;
 
   const timestamp = Date.parse(value);
@@ -61,6 +68,8 @@ export const useTimerStore = create<TimerStore>()(
   runStartedAt: null,
   completedPomodoros: 0,
   desktopNotificationsEnabled: false,
+  syncVersion: 0,
+  syncUpdatedAt: null,
   customDurations: { ...DEFAULT_TIMER_DURATIONS },
 
   setMode: (mode) => {
@@ -199,6 +208,18 @@ export const useTimerStore = create<TimerStore>()(
   clearSavedSession: () => {
     set({ sessionStartedAt: null, runStartedAt: null });
   },
+
+  applyRemoteTimerState: (remoteState) => {
+    const local = {
+      version: get().syncVersion,
+      updatedAt: get().syncUpdatedAt,
+    };
+
+    if (!shouldApplyRemoteTimerState({ local, remote: remoteState })) return false;
+
+    set(toTimerStorePatch(remoteState));
+    return true;
+  },
     }),
     {
       name: "focusflow-timer-settings",
@@ -215,6 +236,8 @@ export const useTimerStore = create<TimerStore>()(
         completedPomodoros: state.completedPomodoros,
         customDurations: state.customDurations,
         desktopNotificationsEnabled: state.desktopNotificationsEnabled,
+        syncVersion: state.syncVersion,
+        syncUpdatedAt: state.syncUpdatedAt,
       }),
     }
   )
