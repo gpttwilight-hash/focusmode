@@ -6,6 +6,7 @@ import { Volume2, VolumeX, Music, ChevronDown, Plus, Trash2 } from "lucide-react
 import { Slider } from "@/components/ui/slider";
 import { useAudioStore, TRACKS, Track } from "@/lib/store/audio-store";
 import { useTimerStore } from "@/lib/store/timer-store";
+import { stopAudioNodes } from "@/lib/audio/generated-audio-handle";
 import { createYouTubeEmbedUrl, parseYouTubeUrl } from "@/lib/audio/youtube-url";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_ORDER = ["lofi", "nature", "noise", "youtube"];
 
+type GeneratedAudioHandle = {
+  gainNode: GainNode;
+  stop: () => void;
+};
+
 export function AudioPlayer({ isOpen, onClose }: Props) {
   const { trackId, isPlaying, volume, isMuted, selectTrack, setPlaying, setVolume, toggleMute } =
     useAudioStore();
@@ -31,7 +37,7 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
 
   const howlRef = useRef<InstanceType<typeof window.Howl> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const generatedNodeRef = useRef<AudioNode | null>(null);
+  const generatedAudioRef = useRef<GeneratedAudioHandle | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [youtubeName, setYoutubeName] = useState("");
   const [youtubeError, setYoutubeError] = useState("");
@@ -59,11 +65,9 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
         howlRef.current = null;
       }, 700);
     }
-    if (generatedNodeRef.current) {
-      try {
-        (generatedNodeRef.current as AudioBufferSourceNode | OscillatorNode).stop();
-      } catch { }
-      generatedNodeRef.current = null;
+    if (generatedAudioRef.current) {
+      generatedAudioRef.current.stop();
+      generatedAudioRef.current = null;
     }
   }, []);
 
@@ -95,7 +99,12 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
         source.loop = true;
         source.connect(gainNode);
         source.start();
-        generatedNodeRef.current = source;
+        generatedAudioRef.current = {
+          gainNode,
+          stop: () => {
+            stopAudioNodes([source, gainNode]);
+          },
+        };
       } else if (generator === "whiteNoise") {
         const bufferSize = ctx.sampleRate * 2;
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -108,7 +117,12 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
         source.loop = true;
         source.connect(gainNode);
         source.start();
-        generatedNodeRef.current = source;
+        generatedAudioRef.current = {
+          gainNode,
+          stop: () => {
+            stopAudioNodes([source, gainNode]);
+          },
+        };
       } else if (generator === "binaural40") {
         const merger = ctx.createChannelMerger(2);
         const oscL = ctx.createOscillator();
@@ -129,7 +143,12 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
 
         oscL.start();
         oscR.start();
-        generatedNodeRef.current = oscL;
+        generatedAudioRef.current = {
+          gainNode,
+          stop: () => {
+            stopAudioNodes([oscL, oscR, gainL, gainR, merger, gainNode]);
+          },
+        };
       }
     },
     [volume, isMuted]
@@ -182,8 +201,8 @@ export function AudioPlayer({ isOpen, onClose }: Props) {
     if (howlRef.current) {
       howlRef.current.volume(isMuted ? 0 : volume);
     }
-    if (audioCtxRef.current) {
-      // Update gainNode if we track it (simplified approach)
+    if (generatedAudioRef.current) {
+      generatedAudioRef.current.gainNode.gain.value = isMuted ? 0 : volume;
     }
   }, [volume, isMuted]);
 

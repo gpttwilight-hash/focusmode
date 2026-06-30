@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { DEFAULT_TIMER_DURATIONS } from "@/lib/settings/timer-settings";
 
 export type TimerMode = "focus" | "short_break" | "long_break";
@@ -12,6 +12,8 @@ interface TimerStore {
   plannedDuration: number;
   sessionLabel: string;
   sessionStartedAt: Date | null;
+  activeElapsedSeconds: number;
+  runStartedAt: Date | null;
   completedPomodoros: number;
   desktopNotificationsEnabled: boolean;
 
@@ -23,12 +25,27 @@ interface TimerStore {
   setDesktopNotificationsEnabled: (enabled: boolean) => void;
   setLabel: (label: string) => void;
   setSecondsRemaining: (s: number) => void;
+  getActiveElapsedSeconds: (now?: number) => number;
+  syncRunningTime: (now?: number) => void;
   start: () => void;
   pause: () => void;
   resume: () => void;
   stop: () => void;
   reset: () => void;
   markComplete: () => void;
+  clearSavedSession: () => void;
+}
+
+function secondsBetween(start: Date, now: number) {
+  return Math.max(0, Math.floor((now - start.getTime()) / 1000));
+}
+
+function reviveTimerDate(key: string, value: unknown) {
+  if (key !== "sessionStartedAt" && key !== "runStartedAt") return value;
+  if (typeof value !== "string") return value;
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? value : new Date(timestamp);
 }
 
 export const useTimerStore = create<TimerStore>()(
@@ -40,6 +57,8 @@ export const useTimerStore = create<TimerStore>()(
   plannedDuration: DEFAULT_TIMER_DURATIONS.focus,
   sessionLabel: "",
   sessionStartedAt: null,
+  activeElapsedSeconds: 0,
+  runStartedAt: null,
   completedPomodoros: 0,
   desktopNotificationsEnabled: false,
   customDurations: { ...DEFAULT_TIMER_DURATIONS },
@@ -48,7 +67,14 @@ export const useTimerStore = create<TimerStore>()(
     const { status, customDurations } = get();
     if (status === "running" || status === "paused") return;
     const duration = customDurations[mode];
-    set({ mode, secondsRemaining: duration, plannedDuration: duration, status: "idle" });
+    set({
+      mode,
+      secondsRemaining: duration,
+      plannedDuration: duration,
+      status: "idle",
+      activeElapsedSeconds: 0,
+      runStartedAt: null,
+    });
   },
 
   setCustomDuration: (mode, seconds) => {
@@ -77,23 +103,63 @@ export const useTimerStore = create<TimerStore>()(
 
   setSecondsRemaining: (s) => set({ secondsRemaining: s }),
 
+  getActiveElapsedSeconds: (now = Date.now()) => {
+    const { status, activeElapsedSeconds, runStartedAt } = get();
+    if (status !== "running" || !runStartedAt) return activeElapsedSeconds;
+
+    return activeElapsedSeconds + secondsBetween(runStartedAt, now);
+  },
+
+  syncRunningTime: (now = Date.now()) => {
+    const { status, plannedDuration, mode, completedPomodoros } = get();
+    if (status !== "running") return;
+
+    const activeElapsedSeconds = get().getActiveElapsedSeconds(now);
+    const secondsRemaining = Math.max(0, plannedDuration - activeElapsedSeconds);
+
+    if (secondsRemaining <= 0) {
+      set({
+        status: "complete",
+        secondsRemaining: 0,
+        activeElapsedSeconds: plannedDuration,
+        runStartedAt: null,
+        completedPomodoros: mode === "focus" ? completedPomodoros + 1 : completedPomodoros,
+      });
+      return;
+    }
+
+    set({ secondsRemaining });
+  },
+
   start: () => {
     const { customDurations, mode } = get();
     const duration = customDurations[mode];
+    const now = new Date();
     set({
       status: "running",
       secondsRemaining: duration,
       plannedDuration: duration,
-      sessionStartedAt: new Date(),
+      sessionStartedAt: now,
+      activeElapsedSeconds: 0,
+      runStartedAt: now,
     });
   },
 
   pause: () => {
-    if (get().status === "running") set({ status: "paused" });
+    const { status, plannedDuration } = get();
+    if (status !== "running") return;
+
+    const activeElapsedSeconds = get().getActiveElapsedSeconds();
+    set({
+      status: "paused",
+      activeElapsedSeconds,
+      runStartedAt: null,
+      secondsRemaining: Math.max(0, plannedDuration - activeElapsedSeconds),
+    });
   },
 
   resume: () => {
-    if (get().status === "paused") set({ status: "running" });
+    if (get().status === "paused") set({ status: "running", runStartedAt: new Date() });
   },
 
   stop: () => {
@@ -102,6 +168,8 @@ export const useTimerStore = create<TimerStore>()(
       status: "idle",
       secondsRemaining: customDurations[mode],
       sessionStartedAt: null,
+      activeElapsedSeconds: 0,
+      runStartedAt: null,
     });
   },
 
@@ -112,6 +180,8 @@ export const useTimerStore = create<TimerStore>()(
       secondsRemaining: customDurations[mode],
       plannedDuration: customDurations[mode],
       sessionStartedAt: null,
+      activeElapsedSeconds: 0,
+      runStartedAt: null,
     });
   },
 
@@ -120,13 +190,29 @@ export const useTimerStore = create<TimerStore>()(
     set({
       status: "complete",
       secondsRemaining: 0,
+      activeElapsedSeconds: get().plannedDuration,
+      runStartedAt: null,
       completedPomodoros: mode === "focus" ? completedPomodoros + 1 : completedPomodoros,
     });
+  },
+
+  clearSavedSession: () => {
+    set({ sessionStartedAt: null, runStartedAt: null });
   },
     }),
     {
       name: "focusflow-timer-settings",
+      storage: createJSONStorage(() => localStorage, { reviver: reviveTimerDate }),
       partialize: (state) => ({
+        mode: state.mode,
+        status: state.status,
+        secondsRemaining: state.secondsRemaining,
+        plannedDuration: state.plannedDuration,
+        sessionLabel: state.sessionLabel,
+        sessionStartedAt: state.sessionStartedAt,
+        activeElapsedSeconds: state.activeElapsedSeconds,
+        runStartedAt: state.runStartedAt,
+        completedPomodoros: state.completedPomodoros,
         customDurations: state.customDurations,
         desktopNotificationsEnabled: state.desktopNotificationsEnabled,
       }),

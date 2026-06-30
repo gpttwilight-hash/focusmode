@@ -5,6 +5,13 @@ import { useTimerStore } from "@/lib/store/timer-store";
 import { useSessionStore } from "@/lib/store/session-store";
 import { useAudioStore } from "@/lib/store/audio-store";
 import { showTimerCompleteNotification } from "@/lib/notifications/focus-notification";
+import {
+  createInitialTimerAlertState,
+  getTimerAlertCue,
+  playTimerAlertCue,
+  primeTimerAlertAudio,
+  type TimerAlertState,
+} from "@/lib/audio/timer-alerts";
 
 export function useTimer() {
   const {
@@ -15,22 +22,21 @@ export function useTimer() {
     sessionStartedAt,
     desktopNotificationsEnabled,
     mode,
-    setSecondsRemaining,
-    markComplete,
+    getActiveElapsedSeconds,
+    syncRunningTime,
     start,
     pause,
     resume,
     stop,
     reset,
+    clearSavedSession,
   } = useTimerStore();
 
   const { addSession, setCurrentSession } = useSessionStore();
   const { isPlaying, setPlaying, trackId } = useAudioStore();
 
-  // Wall-clock approach: store start time and remaining seconds
-  const startWallRef = useRef<number | null>(null);
-  const startRemainingRef = useRef<number>(secondsRemaining);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerAlertStateRef = useRef<TimerAlertState>(createInitialTimerAlertState());
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -39,13 +45,15 @@ export function useTimer() {
     }
   }, []);
 
+  const resetTimerAlerts = useCallback(() => {
+    timerAlertStateRef.current = createInitialTimerAlertState();
+  }, []);
+
   const saveSession = useCallback(
     (completed: boolean) => {
       if (!sessionStartedAt) return;
       const now = new Date();
-      const actualDuration = Math.round(
-        (now.getTime() - sessionStartedAt.getTime()) / 1000
-      );
+      const actualDuration = Math.min(plannedDuration, getActiveElapsedSeconds(now.getTime()));
       addSession({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         label: sessionLabel,
@@ -61,54 +69,39 @@ export function useTimer() {
       });
       setCurrentSession(null);
     },
-    [sessionStartedAt, sessionLabel, mode, plannedDuration, trackId, addSession, setCurrentSession]
+    [
+      sessionStartedAt,
+      sessionLabel,
+      mode,
+      plannedDuration,
+      trackId,
+      getActiveElapsedSeconds,
+      addSession,
+      setCurrentSession,
+    ]
   );
 
   useEffect(() => {
     if (status === "running") {
-      startWallRef.current = Date.now();
-      startRemainingRef.current = secondsRemaining;
-
-      intervalRef.current = setInterval(() => {
-        if (!startWallRef.current) return;
-        const elapsed = Math.floor((Date.now() - startWallRef.current) / 1000);
-        const remaining = startRemainingRef.current - elapsed;
-
-        if (remaining <= 0) {
-          clearTimer();
-          markComplete();
-        } else {
-          setSecondsRemaining(remaining);
-        }
-      }, 250);
+      syncRunningTime();
+      intervalRef.current = setInterval(() => syncRunningTime(), 250);
     } else {
       clearTimer();
-      startWallRef.current = null;
     }
 
     return clearTimer;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, clearTimer, markComplete, setSecondsRemaining]);
+  }, [status, clearTimer, syncRunningTime]);
 
   // Handle page visibility — resume from wall-clock on visibility change
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible" && status === "running") {
-        if (startWallRef.current) {
-          const elapsed = Math.floor((Date.now() - startWallRef.current) / 1000);
-          const remaining = startRemainingRef.current - elapsed;
-          if (remaining <= 0) {
-            clearTimer();
-            markComplete();
-          } else {
-            setSecondsRemaining(remaining);
-          }
-        }
+        syncRunningTime();
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [status, clearTimer, markComplete, setSecondsRemaining]);
+  }, [status, syncRunningTime]);
 
   // Update browser tab title
   useEffect(() => {
@@ -122,32 +115,61 @@ export function useTimer() {
     }
   }, [status, secondsRemaining, mode]);
 
+  // Play soft timer alert sounds near the end and at completion.
+  useEffect(() => {
+    const cue = getTimerAlertCue({
+      status,
+      secondsRemaining,
+      state: timerAlertStateRef.current,
+    });
+
+    if (!cue) {
+      if (status === "idle") resetTimerAlerts();
+      return;
+    }
+
+    if (cue === "countdown") {
+      timerAlertStateRef.current.lastCountdownSecond = secondsRemaining;
+    } else {
+      timerAlertStateRef.current.completionPlayed = true;
+    }
+
+    void playTimerAlertCue(cue);
+  }, [status, secondsRemaining, resetTimerAlerts]);
+
   const handleStart = useCallback(() => {
+    resetTimerAlerts();
+    void primeTimerAlertAudio();
     start();
     if (!isPlaying) setPlaying(true);
-  }, [start, isPlaying, setPlaying]);
+  }, [resetTimerAlerts, start, isPlaying, setPlaying]);
 
   const handlePause = useCallback(() => {
     pause();
   }, [pause]);
 
   const handleResume = useCallback(() => {
-    // Restart wall-clock from current remaining
-    startWallRef.current = Date.now();
-    startRemainingRef.current = secondsRemaining;
+    void primeTimerAlertAudio();
     resume();
-  }, [resume, secondsRemaining]);
+  }, [resume]);
 
   const handleStop = useCallback(() => {
     if (sessionStartedAt) {
       saveSession(false);
     }
+    resetTimerAlerts();
     stop();
     setPlaying(false);
-  }, [sessionStartedAt, saveSession, stop, setPlaying]);
+  }, [sessionStartedAt, saveSession, resetTimerAlerts, stop, setPlaying]);
+
+  const handleReset = useCallback(() => {
+    resetTimerAlerts();
+    reset();
+  }, [resetTimerAlerts, reset]);
 
   const handleComplete = useCallback(() => {
     saveSession(true);
+    clearSavedSession();
     if (typeof window !== "undefined" && "Notification" in window) {
       showTimerCompleteNotification({
         enabled: desktopNotificationsEnabled,
@@ -159,7 +181,7 @@ export function useTimer() {
       });
     }
     setPlaying(false);
-  }, [desktopNotificationsEnabled, mode, saveSession, setPlaying]);
+  }, [desktopNotificationsEnabled, mode, saveSession, clearSavedSession, setPlaying]);
 
   // When status becomes "complete", save session
   useEffect(() => {
@@ -181,6 +203,6 @@ export function useTimer() {
     handlePause,
     handleResume,
     handleStop,
-    reset,
+    reset: handleReset,
   };
 }
