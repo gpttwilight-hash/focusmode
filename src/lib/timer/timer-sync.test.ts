@@ -40,7 +40,7 @@ describe("timer sync", () => {
       mode: "focus",
       status: "running",
       plannedDuration: 900,
-      activeElapsedSeconds: 300,
+      activeElapsedSeconds: 120,
       secondsRemaining: 600,
       syncVersion: 5,
     });

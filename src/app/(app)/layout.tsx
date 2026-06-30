@@ -10,11 +10,13 @@ import { useAudioStore } from "@/lib/store/audio-store";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const loadSessions = useSessionStore((s) => s.loadSessions);
+  const syncSessions = useSessionStore((s) => s.syncSessions);
   const { isPanelOpen, closePanel } = useAudioStore();
 
   useEffect(() => {
     loadSessions();
-  }, [loadSessions]);
+    void syncSessions();
+  }, [loadSessions, syncSessions]);
 
   return (
     <div className="min-h-screen" style={{ background: "var(--ff-bg)" }}>

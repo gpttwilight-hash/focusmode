@@ -35,20 +35,22 @@ export function shouldApplyRemoteTimerState({
 
 export function toTimerStorePatch(remoteState: ActiveTimerState, now = new Date()): TimerStorePatch {
   const remote = normalizeActiveTimerInput(remoteState);
-  const activeElapsedSeconds = Math.min(
+  const currentElapsedSeconds = Math.min(
     remote.plannedDuration,
     calculateActiveElapsedSeconds(remote, now)
   );
-  const secondsRemaining = Math.max(0, remote.plannedDuration - activeElapsedSeconds);
 
   return {
     mode: remote.mode,
     status: remote.status,
-    secondsRemaining: remote.status === "idle" ? remote.plannedDuration : secondsRemaining,
+    secondsRemaining:
+      remote.status === "idle"
+        ? remote.plannedDuration
+        : Math.max(0, remote.plannedDuration - currentElapsedSeconds),
     plannedDuration: remote.plannedDuration,
     sessionLabel: remote.sessionLabel,
     sessionStartedAt: remote.sessionStartedAt,
-    activeElapsedSeconds,
+    activeElapsedSeconds: remote.activeElapsedSeconds,
     runStartedAt: remote.runStartedAt,
     syncVersion: remote.version,
     syncUpdatedAt: remote.updatedAt,

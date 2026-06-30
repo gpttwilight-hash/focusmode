@@ -1,19 +1,16 @@
 import { create } from "zustand";
+import {
+  mergeSessionHistory,
+  normalizeSessionHistoryPayload,
+  type Session,
+} from "@/lib/sessions/session-history";
+import { syncSessionHistory } from "@/lib/sessions/session-sync";
 
-export interface Session {
-  id: string;
-  userId?: string;
-  label: string;
-  mode: "focus" | "short_break" | "long_break";
-  plannedDuration: number;
-  actualDuration: number;
-  startedAt: Date;
-  endedAt: Date;
-  completed: boolean;
-  interrupted: boolean;
-  audioTrackId?: string;
-  synced: boolean;
-}
+export type { Session } from "@/lib/sessions/session-history";
+export {
+  mergeSessionHistory as mergeSessions,
+  normalizeSessionHistoryPayload as parseImportedSessions,
+} from "@/lib/sessions/session-history";
 
 export interface DailyStats {
   date: string;
@@ -31,6 +28,7 @@ interface SessionStore {
 
   addSession: (session: Session) => void;
   importSessions: (sessions: Session[]) => number;
+  syncSessions: () => Promise<void>;
   setCurrentSession: (session: Partial<Session> | null) => void;
   loadSessions: () => void;
   getDailyStats: (date: Date) => DailyStats;
@@ -65,68 +63,6 @@ function saveToStorage(sessions: Session[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
 }
 
-function isSessionMode(value: unknown): value is Session["mode"] {
-  return value === "focus" || value === "short_break" || value === "long_break";
-}
-
-function parseSessionDate(value: unknown) {
-  if (typeof value !== "string" && !(value instanceof Date)) return null;
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-export function parseImportedSessions(input: unknown): Session[] {
-  if (!Array.isArray(input)) return [];
-
-  return input.flatMap((item): Session[] => {
-    if (!item || typeof item !== "object") return [];
-    const session = item as Record<string, unknown>;
-    const startedAt = parseSessionDate(session.startedAt);
-    const endedAt = parseSessionDate(session.endedAt);
-
-    if (
-      typeof session.id !== "string" ||
-      !isSessionMode(session.mode) ||
-      typeof session.plannedDuration !== "number" ||
-      typeof session.actualDuration !== "number" ||
-      !startedAt ||
-      !endedAt
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        id: session.id,
-        userId: typeof session.userId === "string" ? session.userId : undefined,
-        label: typeof session.label === "string" ? session.label : "",
-        mode: session.mode,
-        plannedDuration: Math.max(0, Math.round(session.plannedDuration)),
-        actualDuration: Math.max(0, Math.round(session.actualDuration)),
-        startedAt,
-        endedAt,
-        completed: session.completed === true,
-        interrupted: session.interrupted === true,
-        audioTrackId: typeof session.audioTrackId === "string" ? session.audioTrackId : undefined,
-        synced: session.synced === true,
-      },
-    ];
-  });
-}
-
-export function mergeSessions(existing: Session[], incoming: Session[]) {
-  const sessionsById = new Map(existing.map((session) => [session.id, session]));
-
-  incoming.forEach((session) => {
-    if (!sessionsById.has(session.id)) sessionsById.set(session.id, session);
-  });
-
-  return Array.from(sessionsById.values()).sort(
-    (a, b) => a.startedAt.getTime() - b.startedAt.getTime()
-  );
-}
-
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   currentSession: null,
@@ -137,20 +73,37 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const sessions = [...get().sessions, { ...session, id: session.id || generateId() }];
     saveToStorage(sessions);
     set({ sessions, streak: get().getStreak() });
+    void get().syncSessions();
   },
 
   importSessions: (importedSessions) => {
-    const sessions = mergeSessions(get().sessions, importedSessions);
+    const sessions = mergeSessionHistory(get().sessions, importedSessions);
     const importedCount = sessions.length - get().sessions.length;
     saveToStorage(sessions);
     set({ sessions, streak: get().getStreak() });
+    void get().syncSessions();
     return importedCount;
+  },
+
+  syncSessions: async () => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const cloudSessions = await syncSessionHistory(get().sessions);
+      if (!cloudSessions) return;
+
+      const sessions = mergeSessionHistory(get().sessions, cloudSessions);
+      saveToStorage(sessions);
+      set({ sessions, streak: get().getStreak() });
+    } catch {
+      // Keep local history available offline; the next app open retries.
+    }
   },
 
   setCurrentSession: (session) => set({ currentSession: session }),
 
   loadSessions: () => {
-    const sessions = loadFromStorage();
+    const sessions = normalizeSessionHistoryPayload(loadFromStorage());
     set({ sessions, streak: 0 });
     setTimeout(() => {
       const streak = get().getStreak();

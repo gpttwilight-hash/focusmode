@@ -4,6 +4,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -83,3 +84,31 @@ export const activeTimers = pgTable("active_timers", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const focusSessions = pgTable(
+  "focus_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientSessionId: text("client_session_id").notNull(),
+    label: text("label").default("").notNull(),
+    mode: text("mode").default("focus").notNull(),
+    plannedDuration: integer("planned_duration").default(25 * 60).notNull(),
+    actualDuration: integer("actual_duration").default(0).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }).notNull(),
+    completed: boolean("completed").default(false).notNull(),
+    interrupted: boolean("interrupted").default(false).notNull(),
+    audioTrackId: text("audio_track_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("focus_sessions_user_client_session_id_unique").on(
+      table.userId,
+      table.clientSessionId
+    ),
+  ]
+);
